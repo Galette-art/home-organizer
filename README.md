@@ -3,7 +3,6 @@
 自宅の収納場所と所持品を登録し、あとから検索できる個人向けのスマートフォン対応Webアプリです。
 
 - **アプリを開く：** https://galette-art.github.io/home-organizer/
-- **ソースコード：** https://github.com/Galette-art/home-organizer
 - **主な対象：** Android / Chrome などのモバイルブラウザ
 
 ## 主な機能
