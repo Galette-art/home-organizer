@@ -971,6 +971,37 @@ document.querySelectorAll('.nav').forEach(n=>n.addEventListener('click',()=>{
  renderPlaces();
 })();
 
+// Swipe between the three main tabs on touch screens.
+let mainSwipeStart = null;
+const mainSwipeArea = document.querySelector('main');
+if (mainSwipeArea) {
+ mainSwipeArea.addEventListener('touchstart', e => {
+  if (e.touches.length !== 1) { mainSwipeStart = null; return; }
+  const target = e.target;
+  if (target.closest('input, textarea, select, button, a, .chips, #modalOverlay')) {
+   mainSwipeStart = null; return;
+  }
+  const touch = e.touches[0];
+  mainSwipeStart = {x:touch.clientX,y:touch.clientY};
+ }, {passive:true});
+ mainSwipeArea.addEventListener('touchend', e => {
+  if (!mainSwipeStart || e.changedTouches.length !== 1) { mainSwipeStart = null; return; }
+  const start = mainSwipeStart;
+  mainSwipeStart = null;
+  const touch = e.changedTouches[0];
+  const dx = touch.clientX - start.x, dy = touch.clientY - start.y;
+  if (Math.abs(dx) < 65 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
+  const tabs = ['searchScreen','placeScreen','addScreen'];
+  const active = document.querySelector('.nav.active');
+  const current = active ? tabs.indexOf(active.dataset.screen) : -1;
+  if (current < 0) return;
+  const next = current + (dx < 0 ? 1 : -1);
+  if (next < 0 || next >= tabs.length) return;
+  const button = document.querySelector('.nav[data-screen="' + tabs[next] + '"]');
+  if (button) button.click();
+ }, {passive:true});
+}
+
 // Keep Chrome's PWA installability check satisfied on Android without changing app behavior.
 if('serviceWorker' in navigator){
  navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
