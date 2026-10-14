@@ -72,6 +72,8 @@ main{padding:10px 18px 108px}
 @keyframes screenIn{from{opacity:.3;transform:translateY(7px)}to{opacity:1;transform:none}}
 .screen.swipe-enter-from-right{animation:swipeEnterFromRight .22s ease-out both}
 .screen.swipe-enter-from-left{animation:swipeEnterFromLeft .22s ease-out both}
+/* Reserve horizontal gestures for tab navigation while leaving vertical page scrolling native. */
+.app{touch-action:pan-y}
 @keyframes swipeEnterFromRight{from{opacity:.72;transform:translateX(22px)}to{opacity:1;transform:translateX(0)}}
 @keyframes swipeEnterFromLeft{from{opacity:.72;transform:translateX(-22px)}to{opacity:1;transform:translateX(0)}}
 .section-title{font-size:14px;letter-spacing:.08em;color:#68766b;margin:25px 3px 12px}
@@ -1000,11 +1002,11 @@ document.querySelectorAll('.nav').forEach(n=>n.addEventListener('click',()=>{
  renderPlaces();
 })();
 
-// Swipe between the three main tabs. Taps remain taps; only a clear horizontal
-// gesture changes tabs. Form fields, modals and drag-and-drop controls are excluded.
+// Swipe anywhere within the app shell, including the header, content whitespace and bottom tabs.
+// Taps remain taps; only a clear horizontal gesture changes tabs. Vertical scrolling is preserved.
 let mainSwipeStart = null;
 let mainSwipeClaimed = false;
-const mainSwipeArea = document.querySelector('main');
+const mainSwipeArea = document.querySelector('.app');
 if (mainSwipeArea) {
  mainSwipeArea.addEventListener('touchstart', e => {
   if (e.touches.length !== 1 || document.getElementById('modalOverlay')?.classList.contains('show')) {
