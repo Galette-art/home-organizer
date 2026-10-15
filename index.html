@@ -1006,7 +1006,7 @@ document.querySelectorAll('.nav').forEach(n=>n.addEventListener('click',()=>{
 // Taps remain taps; only a clear horizontal gesture changes tabs. Vertical scrolling is preserved.
 let mainSwipeStart = null;
 let mainSwipeClaimed = false;
-const mainSwipeArea = document.querySelector('.app');
+const mainSwipeArea = document; // Capture swipes even in viewport whitespace outside .app.
 if (mainSwipeArea) {
  mainSwipeArea.addEventListener('touchstart', e => {
   if (e.touches.length !== 1 || document.getElementById('modalOverlay')?.classList.contains('show')) {
