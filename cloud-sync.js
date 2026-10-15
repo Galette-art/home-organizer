@@ -149,6 +149,12 @@
       finally { busy = false; }
     }, 900);
   }
+  window.addEventListener('online', () => {
+    if (user && client) {
+      status('通信が復旧しました。未同期の変更を送信しています…');
+      schedule(getLocalData());
+    }
+  });
   async function restoreLatestBackup(){
     if (!client || !user) return;
     const { data, error } = await client.from('home_organizer_backups').select('backup_date,data').eq('user_id', user.id).order('backup_date', { ascending: false }).limit(1).maybeSingle();
