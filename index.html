@@ -68,7 +68,14 @@ header{position:relative;padding:25px 22px 17px;font-size:0;font-weight:500;colo
 header:before{content:"AT HOME";display:block;font:600 10px/1.4 -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:.24em;color:var(--clay);margin-bottom:8px}
 header:after{content:"暮らしの、ものの居場所。";display:block;font:700 23px/1.45 Georgia,"Noto Serif JP",serif;letter-spacing:.04em;color:var(--espresso)}
 main{padding:10px 18px 108px}
-.screen{animation:screenIn .28s ease both}@keyframes screenIn{from{opacity:.3;transform:translateY(7px)}to{opacity:1;transform:none}}
+.screen{animation:screenIn .28s ease both}
+@keyframes screenIn{from{opacity:.3;transform:translateY(7px)}to{opacity:1;transform:none}}
+.screen.swipe-enter-from-right{animation:swipeEnterFromRight .22s ease-out both}
+.screen.swipe-enter-from-left{animation:swipeEnterFromLeft .22s ease-out both}
+/* Reserve horizontal gestures for tab navigation while leaving vertical page scrolling native. */
+.app{touch-action:pan-y}
+@keyframes swipeEnterFromRight{from{opacity:.72;transform:translateX(22px)}to{opacity:1;transform:translateX(0)}}
+@keyframes swipeEnterFromLeft{from{opacity:.72;transform:translateX(-22px)}to{opacity:1;transform:translateX(0)}}
 .section-title{font-size:14px;letter-spacing:.08em;color:#68766b;margin:25px 3px 12px}
 .card,.editor{background:var(--card);border:1px solid #e9e2d6;border-radius:20px;box-shadow:0 7px 22px rgba(57,65,49,.045);padding:16px;transition:transform .2s,box-shadow .2s}
 .card:active{transform:scale(.992)}
@@ -248,9 +255,18 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function escAttr(s){return esc(s).replace(/`/g,'&#96;')}
 function icon(t){return t==='room'?'🏠':t==='storage'?'🗄️':t==='drawer'?'▣':'▤'}
 
+let screenTransitionDirection = 0;
+
 function showScreen(id){
- document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
- document.getElementById(id).classList.add('active');
+ document.querySelectorAll('.screen').forEach(x=>{
+  x.classList.remove('active','swipe-enter-from-left','swipe-enter-from-right');
+ });
+ const screen=document.getElementById(id);
+ if(!screen)return;
+ screen.classList.add('active');
+ if(screenTransitionDirection){
+  screen.classList.add(screenTransitionDirection>0?'swipe-enter-from-right':'swipe-enter-from-left');
+ }
  document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.screen===id));
  if(id==='searchScreen')renderSearch();
  if(id==='placeScreen')renderPlaces();
@@ -986,34 +1002,70 @@ document.querySelectorAll('.nav').forEach(n=>n.addEventListener('click',()=>{
  renderPlaces();
 })();
 
-// Swipe between the three main tabs on touch screens.
+// Swipe anywhere within the app shell, including the header, content whitespace and bottom tabs.
+// Taps remain taps; only a clear horizontal gesture changes tabs. Vertical scrolling is preserved.
 let mainSwipeStart = null;
-const mainSwipeArea = document.querySelector('main');
+let mainSwipeClaimed = false;
+const mainSwipeArea = document.querySelector('.app');
 if (mainSwipeArea) {
  mainSwipeArea.addEventListener('touchstart', e => {
-  if (e.touches.length !== 1) { mainSwipeStart = null; return; }
-  const target = e.target;
-  if (target.closest('input, textarea, select, button, a, .chips, #modalOverlay')) {
-   mainSwipeStart = null; return;
+  if (e.touches.length !== 1 || document.getElementById('modalOverlay')?.classList.contains('show')) {
+   mainSwipeStart = null;
+   mainSwipeClaimed = false;
+   return;
+  }
+  const target = e.target instanceof Element ? e.target : null;
+  if (!target || target.closest('input, textarea, select, [contenteditable="true"], #modalOverlay, [draggable="true"], .drag-handle')) {
+   mainSwipeStart = null;
+   mainSwipeClaimed = false;
+   return;
   }
   const touch = e.touches[0];
   mainSwipeStart = {x:touch.clientX,y:touch.clientY};
+  mainSwipeClaimed = false;
  }, {passive:true});
- mainSwipeArea.addEventListener('touchend', e => {
-  if (!mainSwipeStart || e.changedTouches.length !== 1) { mainSwipeStart = null; return; }
-  const start = mainSwipeStart;
+
+ mainSwipeArea.addEventListener('touchmove', e => {
+  if (!mainSwipeStart || e.touches.length !== 1) return;
+  const touch = e.touches[0];
+  const dx = touch.clientX - mainSwipeStart.x;
+  const dy = touch.clientY - mainSwipeStart.y;
+  // Claim only clearly horizontal gestures; keep normal vertical scrolling intact.
+  if (Math.abs(dx) >= 12 && Math.abs(dx) > Math.abs(dy) * 1.15) {
+   mainSwipeClaimed = true;
+   if (e.cancelable) e.preventDefault();
+  }
+ }, {passive:false});
+
+ const resetMainSwipe = () => {
   mainSwipeStart = null;
+  mainSwipeClaimed = false;
+ };
+ mainSwipeArea.addEventListener('touchcancel', resetMainSwipe, {passive:true});
+ mainSwipeArea.addEventListener('touchend', e => {
+  if (!mainSwipeStart || e.changedTouches.length !== 1) {
+   resetMainSwipe();
+   return;
+  }
+  const start = mainSwipeStart;
   const touch = e.changedTouches[0];
-  const dx = touch.clientX - start.x, dy = touch.clientY - start.y;
-  if (Math.abs(dx) < 65 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
+  const dx = touch.clientX - start.x;
+  const dy = touch.clientY - start.y;
+  const wasClaimed = mainSwipeClaimed;
+  resetMainSwipe();
+
+  if (!wasClaimed || Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy) * 1.15) return;
   const tabs = ['searchScreen','placeScreen','addScreen'];
   const active = document.querySelector('.nav.active');
   const current = active ? tabs.indexOf(active.dataset.screen) : -1;
   if (current < 0) return;
   const next = current + (dx < 0 ? 1 : -1);
   if (next < 0 || next >= tabs.length) return;
+
+  screenTransitionDirection = dx < 0 ? 1 : -1;
   const button = document.querySelector('.nav[data-screen="' + tabs[next] + '"]');
   if (button) button.click();
+  screenTransitionDirection = 0;
  }, {passive:true});
 }
 
