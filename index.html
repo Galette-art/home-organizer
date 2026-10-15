@@ -1015,7 +1015,9 @@ if (mainSwipeArea) {
    return;
   }
   const target = e.target instanceof Element ? e.target : null;
-  if (!target || target.closest('input, textarea, select, [contenteditable="true"], #modalOverlay, [draggable="true"], .drag-handle')) {
+  // Allow horizontal tab swipes to begin on form controls too; native taps, typing,
+  // selection and dropdown interaction remain intact unless the gesture is horizontal.
+  if (!target || target.closest('#modalOverlay, [draggable="true"], .drag-handle')) {
    mainSwipeStart = null;
    mainSwipeClaimed = false;
    return;
