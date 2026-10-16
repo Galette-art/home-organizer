@@ -160,7 +160,7 @@
       if (busy) { schedule(snapshot); return; }
       busy = true; status('変更をクラウドへ同期しています…');
       try { await saveSnapshot(snapshot, false); status('クラウドへ同期済みです。'); }
-      catch (e) { console.error('Automatic sync failed', e); status('自動同期に失敗しました。通信回復後に「今すぐ同期」を押してください。'); }
+      catch (e) { console.error('Automatic sync failed', e); status('自動同期に失敗しました。通信回復後に「クラウドにバックアップ」を押してください。'); }
       finally { busy = false; }
     }, 900);
   }
