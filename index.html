@@ -105,11 +105,63 @@ main{padding:10px 18px 108px}
 @media(min-width:600px){header{padding-top:34px}main{padding-left:26px;padding-right:26px}.card:hover{box-shadow:0 10px 28px rgba(57,65,49,.08)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
+
+.backup-panel{margin-top:28px;padding:17px;border:1px solid #e3ddcf;border-radius:18px;background:rgba(255,253,248,.82)}
+.backup-panel h3{margin:0 0 7px;font-size:15px;color:var(--espresso)}
+.backup-panel p{font-size:12px;line-height:1.7;color:var(--muted);margin:0 0 12px}
+.backup-panel .backup-actions{display:flex;gap:8px;flex-wrap:wrap}
+.backup-panel .backup-actions .btn{flex:1;min-width:130px}
+.backup-panel input[type=file]{display:none}
+.cloud-status{font-size:12px;line-height:1.7;color:var(--muted);margin:10px 0}
+.cloud-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.cloud-actions .btn{flex:1;min-width:130px}
+
+
+.settings-button{position:absolute;right:20px;top:22px;width:42px;height:42px;border:1px solid #e3ddcf;border-radius:50%;background:rgba(255,253,248,.88);color:var(--espresso);font-size:22px;display:grid;place-items:center;cursor:pointer;box-shadow:0 3px 10px rgba(57,65,49,.06)}
+.settings-overlay{display:none;position:fixed;inset:0;z-index:10000;background:rgba(35,45,37,.46);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px}
+.settings-overlay.show{display:flex}
+.settings-sheet{width:min(100%,560px);max-height:calc(100dvh - 32px);overflow:auto;background:var(--cream);border:1px solid #e5ded1;border-radius:24px;padding:18px;box-shadow:0 12px 45px rgba(31,42,33,.2)}
+.settings-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.settings-heading h2{font:700 22px/1.4 Georgia,"Noto Serif JP",serif;color:var(--espresso);margin:0}.settings-close{border:0;background:#e9eee5;border-radius:50%;width:38px;height:38px;font-size:25px;color:var(--espresso)}.settings-sheet .backup-panel{margin-top:14px}
+.settings-backup-panel{padding:15px;background:#f5f1e8;border-color:#e4ddcf}
+.settings-backup-panel h3{font-size:15px;margin-bottom:6px}
+.settings-backup-panel p{font-size:12px;line-height:1.75;margin-bottom:12px}
+.settings-backup-panel .backup-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.settings-backup-panel .backup-actions .btn{min-width:0;min-height:56px;padding:11px 10px;white-space:normal;line-height:1.45}
+.settings-backup-panel input[type=file]{display:none}
+.settings-done{width:100%;margin-top:12px}
+@media(max-width:380px){.settings-backup-panel .backup-actions{grid-template-columns:1fr}.settings-backup-panel .backup-actions .btn{min-height:48px}}
+html.settings-open,body.settings-open{overflow:hidden!important}
 </style>
 </head>
 <body>
 <div class="app">
-<header>自宅の整理整頓</header>
+<header>自宅の整理整頓<button id="settingsButton" class="settings-button" type="button" aria-label="設定を開く" title="設定" onclick="openSettings()">⚙</button></header>
+<div id="settingsOverlay" class="settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" onclick="if(event.target===this)closeSettings()">
+ <section class="settings-sheet">
+  <div class="settings-heading"><h2 id="settingsTitle">設定</h2><button type="button" class="settings-close" aria-label="閉じる" onclick="closeSettings()">×</button></div>
+  <section class="backup-panel" aria-labelledby="cloudPanelTitle">
+   <h3 id="cloudPanelTitle">アカウント・クラウド同期</h3>
+   <p>登録内容の変更は自動でクラウドへ同期されます。同じGoogleアカウントでログインした別の端末でもデータを利用できます。下のボタンでは、現在のデータをクラウドに保存し、復元用バックアップも作成します。ログインしなくても、この端末だけで利用できます。</p>
+   <div id="cloudSyncStatus" class="cloud-status" role="status" aria-live="polite">クラウド同期の設定を確認しています…</div>
+   <div class="cloud-actions">
+    <button id="cloudLoginButton" class="btn" type="button" onclick="CloudSync.login()">Googleでログイン</button>
+    <button id="cloudSyncButton" class="btn hidden" type="button" onclick="CloudSync.syncNow()">クラウドにバックアップ</button>
+    <button id="cloudRestoreButton" class="btn secondary hidden" type="button" onclick="CloudSync.restoreLatestBackup()">クラウドバックアップから復元</button>
+    <button id="cloudLogoutButton" class="btn secondary hidden" type="button" onclick="CloudSync.logout()">ログアウト</button>
+   </div>
+  </section>
+  <section class="backup-panel settings-backup-panel" aria-labelledby="backupPanelTitle">
+   <h3 id="backupPanelTitle">端末内バックアップ</h3>
+   <p>登録した物・場所・タグと写真をJSONファイルに保存できます。機種変更やデータ復旧に備え、保存したファイルはGoogleドライブなど安全な場所にも保管してください。</p>
+   <div class="backup-actions">
+    <button class="btn" type="button" onclick="exportBackup()">バックアップを書き出す</button>
+    <button class="btn secondary" type="button" onclick="document.getElementById('backupFileInput').click()">バックアップから復元</button>
+   </div>
+   <input id="backupFileInput" type="file" accept=".json,application/json" onchange="restoreBackupFile(this.files&&this.files[0]);this.value=''">
+  </section>
+  <button class="btn secondary settings-done" type="button" onclick="closeSettings()">閉じる</button>
+ </section>
+</div>
 <main>
 <section id="searchScreen" class="screen active">
   <div class="searchbox"><input id="searchInput" placeholder="物の名前を検索"><button class="btn" onclick="renderSearch()">検索</button></div>
@@ -151,6 +203,9 @@ main{padding:10px 18px 108px}
 
 
 <div id="appToast" role="status" aria-live="polite"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./supabase-config.js"></script>
+<script src="./cloud-sync.js"></script>
 <script>
 const KEY='homeOrganizerPhase1';
 let data=JSON.parse(localStorage.getItem(KEY)||'null')||{
@@ -246,7 +301,102 @@ async function loadAllPhotos(){
  }));
  save();
 }
-function save(){normalizeLocationOrder();localStorage.setItem(KEY,JSON.stringify(data))}
+function save(){normalizeLocationOrder();localStorage.setItem(KEY,JSON.stringify(data));if(window.CloudSync)window.CloudSync.schedule(JSON.parse(JSON.stringify(data)))}
+window.HomeOrganizerGetData=()=>JSON.parse(JSON.stringify(data));
+window.HomeOrganizerGetPhoto=async id=>await getPhoto(id);
+window.HomeOrganizerPutPhoto=async(id,dataUrl)=>{
+ const db=await openPhotoDB();
+ await new Promise((resolve,reject)=>{
+  const tx=db.transaction(PHOTO_STORE,'readwrite');
+  tx.objectStore(PHOTO_STORE).put(dataUrl,id);
+  tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('写真の保存に失敗しました'));
+ });
+ photoCache.set(id,dataUrl);
+};
+window.HomeOrganizerSetData=async next=>{
+ if(!next||!Array.isArray(next.locations)||!Array.isArray(next.items)||!Array.isArray(next.tags))throw new Error('クラウドデータの形式が正しくありません');
+ data=JSON.parse(JSON.stringify(next));normalizeLocationOrder();localStorage.setItem(KEY,JSON.stringify(data));
+ photoCache.clear();await loadAllPhotos();renderSearch();renderAddForm(false);renderPlaces();
+};
+
+// Export a complete local backup, including photos stored separately in IndexedDB.
+async function exportBackup(){
+ try{
+  const refs=[...data.items,...data.locations].map(x=>x.photo).filter(Boolean);
+  const photos={};
+  for(const ref of refs){
+   if(String(ref).startsWith('data:'))photos[ref]=ref;
+   else if(String(ref).startsWith('photo:')){
+    const value=await getPhoto(ref);
+    if(!value)throw new Error('写真データが見つかりません: '+ref);
+    photos[ref]=value;
+   }
+  }
+  const payload={format:'home-organizer-backup',version:1,exportedAt:new Date().toISOString(),data:JSON.parse(JSON.stringify(data)),photos};
+  const blob=new Blob([JSON.stringify(payload)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='home-organizer-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  showToast('バックアップを書き出しました。');
+ }catch(e){
+  console.error('Backup export failed',e);
+  showToast('バックアップに失敗しました。写真の保存状態を確認してください。');
+ }
+}
+
+async function restoreBackupFile(file){
+ if(!file)return;
+ try{
+  const payload=JSON.parse(await file.text());
+  if(!payload||payload.format!=='home-organizer-backup'||payload.version!==1||
+     !payload.data||!Array.isArray(payload.data.locations)||!Array.isArray(payload.data.items)||!Array.isArray(payload.data.tags)||
+     !payload.photos||typeof payload.photos!=='object'||Array.isArray(payload.photos)){
+   throw new Error('対応していないバックアップ形式です。');
+  }
+  const restored=JSON.parse(JSON.stringify(payload.data));
+  const photos=payload.photos;
+  for(const collection of [restored.items,restored.locations]){
+   for(const entry of collection){
+    const ref=entry.photo;
+    if(!ref)continue;
+    if(String(ref).startsWith('photo:')&&!photos[ref])throw new Error('バックアップ内に写真データがありません。');
+    if(String(ref).startsWith('data:')){
+     const value=photos[ref]||ref;
+     const newRef='photo:'+crypto.randomUUID();
+     photos[newRef]=value;
+     entry.photo=newRef;
+    }
+   }
+  }
+  for(const [id,value] of Object.entries(photos)){
+   if(typeof value!=='string'||!value.startsWith('data:'))throw new Error('写真データの形式が正しくありません。');
+  }
+  if(!confirm('現在この端末に保存されているデータを、選択したバックアップの内容に置き換えます。復元前に現在のデータもバックアップしてください。続けますか？'))return;
+
+  const db=await openPhotoDB();
+  await new Promise((resolve,reject)=>{
+   const tx=db.transaction(PHOTO_STORE,'readwrite');
+   const store=tx.objectStore(PHOTO_STORE);
+   for(const [id,value] of Object.entries(photos))store.put(value,id);
+   tx.oncomplete=resolve;
+   tx.onerror=()=>reject(tx.error);
+   tx.onabort=()=>reject(tx.error||new Error('写真データの復元に失敗しました。'));
+  });
+  data=restored;
+  normalizeLocationOrder();
+  localStorage.setItem(KEY,JSON.stringify(data));
+  photoCache.clear();
+  showToast('復元しました。アプリを再読み込みします。');
+  location.reload();
+ }catch(e){
+  console.error('Backup restore failed',e);
+  showToast('復元できませんでした。バックアップファイルを確認してください。');
+ }
+}
+
 function loc(id){return data.locations.find(x=>x.id===id)}
 function children(id){return data.locations.filter(x=>x.parent===id).sort((a,b)=>(a.order||0)-(b.order||0))}
 function itemsAt(id){return data.items.filter(x=>x.location===id)}
@@ -254,6 +404,10 @@ function path(id){let a=[],x=loc(id);while(x){a.unshift(x.name);x=loc(x.parent)}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function escAttr(s){return esc(s).replace(/`/g,'&#96;')}
 function icon(t){return t==='room'?'🏠':t==='storage'?'🗄️':t==='drawer'?'▣':'▤'}
+
+function openSettings(){const el=document.getElementById('settingsOverlay');if(!el)return;el.classList.add('show');document.documentElement.classList.add('settings-open');document.body.classList.add('settings-open');}
+function closeSettings(){const el=document.getElementById('settingsOverlay');if(!el)return;el.classList.remove('show');document.documentElement.classList.remove('settings-open');document.body.classList.remove('settings-open');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSettings();});
 
 let screenTransitionDirection = 0;
 
@@ -1000,6 +1154,7 @@ document.querySelectorAll('.nav').forEach(n=>n.addEventListener('click',()=>{
  renderSearch();
  renderAddForm(false);
  renderPlaces();
+ if(window.CloudSync)await window.CloudSync.init();
 })();
 
 // Swipe anywhere within the app shell, including the header, content whitespace and bottom tabs.
