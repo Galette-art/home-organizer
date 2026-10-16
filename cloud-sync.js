@@ -125,15 +125,14 @@
         if (key) localStorage.setItem(key, '1');
         status('初回バックアップを作成しました。自動同期が有効です。');
       } else {
-        const chooseRemote = confirm('このGoogleアカウントにはクラウドデータがあります。\nOK：クラウドのデータをこの端末へ復元\nキャンセル：この端末のデータでクラウドを更新');
+        const chooseRemote = confirm('このGoogleアカウントにはクラウドデータがあります。クラウドのデータをこの端末に同期しますか？\nOK：クラウドのデータをこの端末に反映\nキャンセル：端末内のデータを維持し、今回は同期しない');
         if (chooseRemote) {
           await restoreRemote(remote.data);
           if (key) localStorage.setItem(key, '1');
-          status('クラウドのデータを復元しました。');
+          status('クラウドのデータをこの端末に同期しました。');
         } else {
-          await saveSnapshot(local, true);
           if (key) localStorage.setItem(key, '1');
-          status('この端末のデータをクラウドへ保存しました。');
+          status('今回は同期していません。端末内のデータはそのままです。必要な場合は「クラウドにバックアップ」を押してください。');
         }
       }
     } catch (e) {
