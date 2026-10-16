@@ -377,12 +377,13 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function escAttr(s){return esc(s).replace(/`/g,'&#96;')}
 function icon(t){return t==='room'?'🏠':t==='storage'?'🗄️':t==='drawer'?'▣':'▤'}
 
+function openSettings(){const el=document.getElementById('settingsOverlay');if(!el)return;el.classList.add('show');document.documentElement.classList.add('settings-open');document.body.classList.add('settings-open');}
+function closeSettings(){const el=document.getElementById('settingsOverlay');if(!el)return;el.classList.remove('show');document.documentElement.classList.remove('settings-open');document.body.classList.remove('settings-open');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSettings();});
+
 function showScreen(id){
  document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
  document.getElementById(id).classList.add('active');
- function openSettings(){const el=document.getElementById('settingsOverlay');if(!el)return;el.classList.add('show');document.documentElement.classList.add('settings-open');document.body.classList.add('settings-open');}
-function closeSettings(){const el=document.getElementById('settingsOverlay');if(!el)return;el.classList.remove('show');document.documentElement.classList.remove('settings-open');document.body.classList.remove('settings-open');}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSettings();});
 document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.screen===id));
  if(id==='searchScreen')renderSearch();
  if(id==='placeScreen')renderPlaces();
