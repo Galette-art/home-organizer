@@ -47,7 +47,12 @@
     if (!client) return;
     const { error } = await client.auth.signOut();
     if (error) { console.error(error); status('ログアウトできませんでした。'); }
-    else { user = null; authButtons(); status('ログアウトしました。端末内のデータはそのまま保持されています。再度ログインするとクラウド同期を利用できます。'); }
+    else {
+      const key = initializedKey();
+      if (key) localStorage.removeItem(key);
+      user = null; authButtons();
+      status('ログアウトしました。端末内のデータはそのまま保持されています。再ログイン時にクラウドデータとの同期を確認します。');
+    }
   }
   function getLocalData(){ return window.HomeOrganizerGetData ? window.HomeOrganizerGetData() : null; }
   function getPhoto(id){ return window.HomeOrganizerGetPhoto ? window.HomeOrganizerGetPhoto(id) : Promise.resolve(''); }
@@ -143,7 +148,7 @@
   async function syncNow(){
     if (!client || !user || busy) return;
     busy = true; status('同期中…');
-    try { await saveSnapshot(getLocalData(), true); status('同期・バックアップが完了しました。'); }
+    try { await saveSnapshot(getLocalData(), true); status('クラウドへのバックアップが完了しました。'); }
     catch (e) { console.error(e); status('同期できませんでした。端末内データは保持されています。'); }
     finally { busy = false; }
   }
