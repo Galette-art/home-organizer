@@ -31,7 +31,7 @@
       user = session && session.user ? session.user : null;
       authButtons();
       if (user && event === 'SIGNED_IN') setTimeout(() => onSignedIn(), 0);
-      if (!user) status('ログアウトしました。端末内のデータは削除していません。');
+      if (!user) status('Googleアカウントにログインしていません。ログインするとクラウド同期を利用できます。端末内のデータはそのまま保持されます。');
     });
     if (user) await onSignedIn();
   }
@@ -47,7 +47,7 @@
     if (!client) return;
     const { error } = await client.auth.signOut();
     if (error) { console.error(error); status('ログアウトできませんでした。'); }
-    else { user = null; authButtons(); status('ログアウトしました。端末内のデータは削除していません。'); }
+    else { user = null; authButtons(); status('ログアウトしました。端末内のデータはそのまま保持されています。再度ログインするとクラウド同期を利用できます。'); }
   }
   function getLocalData(){ return window.HomeOrganizerGetData ? window.HomeOrganizerGetData() : null; }
   function getPhoto(id){ return window.HomeOrganizerGetPhoto ? window.HomeOrganizerGetPhoto(id) : Promise.resolve(''); }
