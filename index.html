@@ -105,11 +105,35 @@ main{padding:10px 18px 108px}
 .cloud-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .cloud-actions .btn{flex:1;min-width:130px}
 
+
+.settings-button{position:absolute;right:20px;top:22px;width:42px;height:42px;border:1px solid #e3ddcf;border-radius:50%;background:rgba(255,253,248,.88);color:var(--espresso);font-size:22px;display:grid;place-items:center;cursor:pointer;box-shadow:0 3px 10px rgba(57,65,49,.06)}
+.settings-overlay{display:none;position:fixed;inset:0;z-index:10000;background:rgba(35,45,37,.46);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px}
+.settings-overlay.show{display:flex}
+.settings-sheet{width:min(100%,560px);max-height:calc(100dvh - 32px);overflow:auto;background:var(--cream);border:1px solid #e5ded1;border-radius:24px;padding:18px;box-shadow:0 12px 45px rgba(31,42,33,.2)}
+.settings-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.settings-heading h2{font:700 22px/1.4 Georgia,"Noto Serif JP",serif;color:var(--espresso);margin:0}.settings-close{border:0;background:#e9eee5;border-radius:50%;width:38px;height:38px;font-size:25px;color:var(--espresso)}.settings-sheet .backup-panel{margin-top:14px}.settings-done{width:100%;margin-top:12px}
+html.settings-open,body.settings-open{overflow:hidden!important}
 </style>
 </head>
 <body>
 <div class="app">
-<header>自宅の整理整頓</header>
+<header>自宅の整理整頓<button id="settingsButton" class="settings-button" type="button" aria-label="設定を開く" title="設定" onclick="openSettings()">⚙</button></header>
+<div id="settingsOverlay" class="settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" onclick="if(event.target===this)closeSettings()">
+ <section class="settings-sheet">
+  <div class="settings-heading"><h2 id="settingsTitle">設定</h2><button type="button" class="settings-close" aria-label="閉じる" onclick="closeSettings()">×</button></div>
+  <section class="backup-panel" aria-labelledby="cloudPanelTitle">
+   <h3 id="cloudPanelTitle">Googleアカウント・クラウド同期</h3>
+   <p>Googleログイン後、収納データと写真をクラウドに保存し、別の端末でも利用できます。同期先は本人のアカウントに限定されます。</p>
+   <div id="cloudSyncStatus" class="cloud-status" role="status" aria-live="polite">クラウド同期の設定を確認しています…</div>
+   <div class="cloud-actions">
+    <button id="cloudLoginButton" class="btn" type="button" onclick="CloudSync.login()">Googleでログイン</button>
+    <button id="cloudSyncButton" class="btn hidden" type="button" onclick="CloudSync.syncNow()">今すぐ同期・バックアップ</button>
+    <button id="cloudRestoreButton" class="btn secondary hidden" type="button" onclick="CloudSync.restoreLatestBackup()">クラウドバックアップから復元</button>
+    <button id="cloudLogoutButton" class="btn secondary hidden" type="button" onclick="CloudSync.logout()">ログアウト</button>
+   </div>
+  </section>
+  <button class="btn secondary settings-done" type="button" onclick="closeSettings()">閉じる</button>
+ </section>
+</div>
 <main>
 <section id="searchScreen" class="screen active">
   <div class="searchbox"><input id="searchInput" placeholder="物の名前を検索"><button class="btn" onclick="renderSearch()">検索</button></div>
@@ -356,7 +380,10 @@ function icon(t){return t==='room'?'🏠':t==='storage'?'🗄️':t==='drawer'?'
 function showScreen(id){
  document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
  document.getElementById(id).classList.add('active');
- document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.screen===id));
+ function openSettings(){const el=document.getElementById('settingsOverlay');if(!el)return;el.classList.add('show');document.documentElement.classList.add('settings-open');document.body.classList.add('settings-open');}
+function closeSettings(){const el=document.getElementById('settingsOverlay');if(!el)return;el.classList.remove('show');document.documentElement.classList.remove('settings-open');document.body.classList.remove('settings-open');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSettings();});
+document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.dataset.screen===id));
  if(id==='searchScreen')renderSearch();
  if(id==='placeScreen')renderPlaces();
  if(id==='addScreen')renderAddForm(false);
@@ -407,17 +434,7 @@ function renderPlaces(){
    </div>
    <input id="backupFileInput" type="file" accept=".json,application/json" onchange="restoreBackupFile(this.files&&this.files[0]);this.value=''">
   </section>
-  <section class="backup-panel" aria-labelledby="cloudPanelTitle">
-   <h3 id="cloudPanelTitle">Googleアカウント・クラウド同期</h3>
-   <p>Googleログイン後、収納データと写真をクラウドに保存し、別の端末でも利用できます。同期先は本人のアカウントに限定されます。</p>
-   <div id="cloudSyncStatus" class="cloud-status" role="status" aria-live="polite">クラウド同期の設定を確認しています…</div>
-   <div class="cloud-actions">
-    <button id="cloudLoginButton" class="btn" type="button" onclick="CloudSync.login()">Googleでログイン</button>
-    <button id="cloudSyncButton" class="btn hidden" type="button" onclick="CloudSync.syncNow()">今すぐ同期・バックアップ</button>
-    <button id="cloudRestoreButton" class="btn secondary hidden" type="button" onclick="CloudSync.restoreLatestBackup()">クラウドバックアップから復元</button>
-    <button id="cloudLogoutButton" class="btn secondary hidden" type="button" onclick="CloudSync.logout()">ログアウト</button>
-   </div>
-  </section>
+
  `;
   return;
  }
