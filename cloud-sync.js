@@ -43,12 +43,13 @@
     });
     if (error) { console.error(error); status('Googleログインを開始できませんでした。Supabaseの認証設定を確認してください。'); }
   }
+  
   async function logout(){
     if (!client) return;
+    const key = initializedKey();
     const { error } = await client.auth.signOut();
     if (error) { console.error(error); status('ログアウトできませんでした。'); }
     else {
-      const key = initializedKey();
       if (key) localStorage.removeItem(key);
       user = null; authButtons();
       status('ログアウトしました。端末内のデータはそのまま保持されています。再ログイン時にクラウドデータとの同期を確認します。');
