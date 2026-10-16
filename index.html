@@ -130,11 +130,11 @@ html.settings-open,body.settings-open{overflow:hidden!important}
   <div class="settings-heading"><h2 id="settingsTitle">設定</h2><button type="button" class="settings-close" aria-label="閉じる" onclick="closeSettings()">×</button></div>
   <section class="backup-panel" aria-labelledby="cloudPanelTitle">
    <h3 id="cloudPanelTitle">アカウント・クラウド同期</h3>
-   <p>Googleアカウントでログインすると、収納データと写真を自分専用のクラウドに保存し、別の端末でも利用できます。ログインしなくても、今までどおりこの端末で利用できます。</p>
+   <p>登録内容の変更は自動でクラウドへ同期されます。同じGoogleアカウントでログインした別の端末でもデータを利用できます。下のボタンでは、現在のデータをクラウドに保存し、復元用バックアップも作成します。ログインしなくても、この端末だけで利用できます。</p>
    <div id="cloudSyncStatus" class="cloud-status" role="status" aria-live="polite">クラウド同期の設定を確認しています…</div>
    <div class="cloud-actions">
     <button id="cloudLoginButton" class="btn" type="button" onclick="CloudSync.login()">Googleでログイン</button>
-    <button id="cloudSyncButton" class="btn hidden" type="button" onclick="CloudSync.syncNow()">今すぐ同期・バックアップ</button>
+    <button id="cloudSyncButton" class="btn hidden" type="button" onclick="CloudSync.syncNow()">クラウドに保存・バックアップ</button>
     <button id="cloudRestoreButton" class="btn secondary hidden" type="button" onclick="CloudSync.restoreLatestBackup()">クラウドバックアップから復元</button>
     <button id="cloudLogoutButton" class="btn secondary hidden" type="button" onclick="CloudSync.logout()">ログアウト</button>
    </div>
