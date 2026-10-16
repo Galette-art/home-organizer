@@ -110,7 +110,15 @@ main{padding:10px 18px 108px}
 .settings-overlay{display:none;position:fixed;inset:0;z-index:10000;background:rgba(35,45,37,.46);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px}
 .settings-overlay.show{display:flex}
 .settings-sheet{width:min(100%,560px);max-height:calc(100dvh - 32px);overflow:auto;background:var(--cream);border:1px solid #e5ded1;border-radius:24px;padding:18px;box-shadow:0 12px 45px rgba(31,42,33,.2)}
-.settings-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.settings-heading h2{font:700 22px/1.4 Georgia,"Noto Serif JP",serif;color:var(--espresso);margin:0}.settings-close{border:0;background:#e9eee5;border-radius:50%;width:38px;height:38px;font-size:25px;color:var(--espresso)}.settings-sheet .backup-panel{margin-top:14px}.settings-done{width:100%;margin-top:12px}
+.settings-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.settings-heading h2{font:700 22px/1.4 Georgia,"Noto Serif JP",serif;color:var(--espresso);margin:0}.settings-close{border:0;background:#e9eee5;border-radius:50%;width:38px;height:38px;font-size:25px;color:var(--espresso)}.settings-sheet .backup-panel{margin-top:14px}
+.settings-backup-panel{padding:15px;background:#f5f1e8;border-color:#e4ddcf}
+.settings-backup-panel h3{font-size:15px;margin-bottom:6px}
+.settings-backup-panel p{font-size:12px;line-height:1.75;margin-bottom:12px}
+.settings-backup-panel .backup-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.settings-backup-panel .backup-actions .btn{min-width:0;min-height:56px;padding:11px 10px;white-space:normal;line-height:1.45}
+.settings-backup-panel input[type=file]{display:none}
+.settings-done{width:100%;margin-top:12px}
+@media(max-width:380px){.settings-backup-panel .backup-actions{grid-template-columns:1fr}.settings-backup-panel .backup-actions .btn{min-height:48px}}
 html.settings-open,body.settings-open{overflow:hidden!important}
 </style>
 </head>
@@ -130,6 +138,15 @@ html.settings-open,body.settings-open{overflow:hidden!important}
     <button id="cloudRestoreButton" class="btn secondary hidden" type="button" onclick="CloudSync.restoreLatestBackup()">クラウドバックアップから復元</button>
     <button id="cloudLogoutButton" class="btn secondary hidden" type="button" onclick="CloudSync.logout()">ログアウト</button>
    </div>
+  </section>
+  <section class="backup-panel settings-backup-panel" aria-labelledby="backupPanelTitle">
+   <h3 id="backupPanelTitle">端末内バックアップ</h3>
+   <p>登録した物・場所・タグと写真をJSONファイルに保存できます。機種変更やデータ復旧に備え、保存したファイルはGoogleドライブなど安全な場所にも保管してください。</p>
+   <div class="backup-actions">
+    <button class="btn" type="button" onclick="exportBackup()">バックアップを書き出す</button>
+    <button class="btn secondary" type="button" onclick="document.getElementById('backupFileInput').click()">バックアップから復元</button>
+   </div>
+   <input id="backupFileInput" type="file" accept=".json,application/json" onchange="restoreBackupFile(this.files&&this.files[0]);this.value=''">
   </section>
   <button class="btn secondary settings-done" type="button" onclick="closeSettings()">閉じる</button>
  </section>
@@ -426,15 +443,7 @@ function renderPlaces(){
    <button class="btn" onclick="openAddLocation(null)">＋ 部屋を追加</button>
  </div></div>
  <div class="location-manage-list">${children(null).map((x,i)=>modeLocationRow(x,i,true)).join('')}</div>
-  <section class="backup-panel" aria-labelledby="backupPanelTitle">
-   <h3 id="backupPanelTitle">バックアップ・復元</h3>
-   <p>登録した物・場所・タグと写真をまとめて端末に保存します。機種変更やデータ復旧に備え、バックアップファイルを安全な場所に保管してください。</p>
-   <div class="backup-actions">
-    <button class="btn" type="button" onclick="exportBackup()">バックアップを書き出す</button>
-    <button class="btn secondary" type="button" onclick="document.getElementById('backupFileInput').click()">バックアップから復元</button>
-   </div>
-   <input id="backupFileInput" type="file" accept=".json,application/json" onchange="restoreBackupFile(this.files&&this.files[0]);this.value=''">
-  </section>
+
 
  `;
   return;
