@@ -107,22 +107,32 @@
     try { await window.HomeOrganizerSetData(restored); }
     finally { suppress = false; }
   }
+  function initializedKey(){ return user ? 'homeOrganizerCloudInitialized:' + user.id : ''; }
   async function onSignedIn(){
     if (!client || !user || busy) return;
+    const key = initializedKey();
+    // Ask how to handle existing cloud data only during initial setup on this browser.
+    if (key && localStorage.getItem(key) === '1') {
+      status('Googleアカウントに接続済みです。自動同期が有効です。');
+      return;
+    }
     busy = true; status('クラウドのデータを確認しています…');
     try {
       const remote = await fetchRemote();
       const local = getLocalData();
       if (!remote) {
         await saveSnapshot(local, true);
+        if (key) localStorage.setItem(key, '1');
         status('初回バックアップを作成しました。自動同期が有効です。');
       } else {
         const chooseRemote = confirm('このGoogleアカウントにはクラウドデータがあります。\nOK：クラウドのデータをこの端末へ復元\nキャンセル：この端末のデータでクラウドを更新');
         if (chooseRemote) {
           await restoreRemote(remote.data);
+          if (key) localStorage.setItem(key, '1');
           status('クラウドのデータを復元しました。');
         } else {
           await saveSnapshot(local, true);
+          if (key) localStorage.setItem(key, '1');
           status('この端末のデータをクラウドへ保存しました。');
         }
       }
