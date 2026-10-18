@@ -24,8 +24,8 @@ main{padding:8px 16px 92px}.screen{display:none}.screen.active{display:block}
 .item-info{min-width:0}.item-name{font-weight:700}.location,.meta{font-size:13px;color:var(--muted);margin-top:4px}
 .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.tag{font-size:12px;padding:4px 8px;border-radius:999px;background:#f0f0ec}
 .empty-state{text-align:center;color:var(--muted);padding:35px 10px}
-.tree-row{display:flex;align-items:center;justify-content:space-between;padding:15px 4px;border-bottom:1px solid var(--line)}
-.tree-row span{color:var(--muted)}.back{margin:0 0 10px;background:none;border:0;padding:5px 0;color:#555}
+.tree-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 4px;border-bottom:1px solid var(--line)}
+.tree-row>span{color:var(--muted);flex:none}.tree-row b{min-width:0;flex:1;overflow-wrap:anywhere;font-weight:600}.tree-thumb{width:48px;height:48px;flex:none;object-fit:cover;border-radius:12px;border:1px solid #e5ded1;box-shadow:0 2px 8px rgba(45,54,44,.08)}.back{margin:0 0 10px;background:none;border:0;padding:5px 0;color:#555}
 .form label{display:block;font-size:13px;font-weight:700;margin:15px 0 7px}.form input,.form textarea,.form select{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff}.form textarea{min-height:90px;resize:vertical}
 .photo-preview{width:100%;height:180px;object-fit:cover;border-radius:12px;background:#eee;margin-top:8px}.hidden{display:none!important}
 .actions{display:flex;gap:8px;margin-top:18px}.actions .btn{flex:1}
@@ -79,7 +79,7 @@ main{padding:10px 18px 108px}
 .section-title{font-size:14px;letter-spacing:.08em;color:#68766b;margin:25px 3px 12px}
 .card,.editor{background:var(--card);border:1px solid #e9e2d6;border-radius:20px;box-shadow:0 7px 22px rgba(57,65,49,.045);padding:16px;transition:transform .2s,box-shadow .2s}
 .card:active{transform:scale(.992)}
-.item-card{gap:14px}.thumb{width:68px;height:68px;border-radius:15px;background:#eee9df}.thumb.empty{background:linear-gradient(145deg,#e7e8dc,#f5eee3);color:#829080}
+.item-card{gap:16px}.item-card .thumb{width:92px;height:92px;flex:none;border-radius:16px;background:#eee9df;object-fit:cover}.item-card .thumb.empty{background:linear-gradient(145deg,#e7e8dc,#f5eee3);color:#829080}
 .item-name{font-size:15px;font-weight:700;letter-spacing:.02em}.location,.meta{color:#7b8379;font-size:12px}
 .tag{background:#e9eee5;color:#5b6b5c;border:1px solid #dfe6db;padding:5px 10px}
 .searchbox{gap:9px}.searchbox input,.form input,.form textarea,.form select{border:1px solid #e3ddcf;border-radius:14px;background:#fffdf9;color:var(--text);padding:13px 14px;outline:none;transition:border-color .2s,box-shadow .2s}
@@ -446,7 +446,12 @@ function renderSearch(){
  });
  document.getElementById('searchResults').innerHTML=`<div class="section-title">検索結果 ${results.length}件</div>`+(results.length?results.map(itemCard).join(''):`<div class="empty-state">該当する物がありません</div>`);
 }
-function row(x){return `<div class="tree-row" onclick="openPlace('${x.id}')"><b>${icon(x.type)} ${esc(x.name)}${x.photo?' 📷':''}</b><span>›</span></div>`}
+function row(x){
+ const src=photoSrc(x.photo);
+ const image=src?`<img class="tree-thumb" src="${escAttr(src)}" alt="${escAttr(x.name)}の写真" loading="lazy">`:"";
+ const label=src?"":`${icon(x.type)} `;
+ return `<div class="tree-row" onclick="openPlace(&quot;${x.id}&quot;)">${image}<b>${label}${esc(x.name)}</b><span aria-hidden="true">›</span></div>`;
+}
 let dragLocationId=null;
 function startLocationDrag(e,id){if(placeMode!=='edit')return;dragLocationId=id;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',id);e.currentTarget.classList.add('dragging')}
 function allowLocationDrop(e){if(placeMode==='edit')e.preventDefault()}
