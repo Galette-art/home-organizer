@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f6f6f3">
-<link rel="manifest" href="manifest.json?v=20261008-7">
-<link rel="apple-touch-icon" href="icons/icon-192.png?v=20261010-1">
+<link rel="manifest" href="manifest.json?v=20261018-3">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=20261018-3">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- BUILD: 2026-10-06-location-dialog-v2 -->
+<!-- BUILD: 2026-10-18-location-photo-thumbnails-v3 -->
 <title>自宅の整理整頓</title>
 <style>
 :root{--bg:#f6f6f3;--card:#fff;--text:#222;--muted:#777;--line:#e5e5e0}
@@ -448,9 +448,9 @@ function renderSearch(){
 }
 function row(x){
  const src=photoSrc(x.photo);
- const image=src?`<img class="tree-thumb" src="${escAttr(src)}" alt="${escAttr(x.name)}の写真" loading="lazy">`:"";
+ const image=src?`<img class="tree-thumb" src="${escAttr(src)}" alt="${escAttr(x.name)}の写真">`:"";
  const label=src?"":`${icon(x.type)} `;
- return `<div class="tree-row" onclick="openPlace(&quot;${x.id}&quot;)">${image}<b>${label}${esc(x.name)}</b><span aria-hidden="true">›</span></div>`;
+ return `<div class="tree-row" onclick="openPlace('${escAttr(x.id)}')">${image}<b>${label}${esc(x.name)}</b><span aria-hidden="true">›</span></div>`;
 }
 let dragLocationId=null;
 function startLocationDrag(e,id){if(placeMode!=='edit')return;dragLocationId=id;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',id);e.currentTarget.classList.add('dragging')}
