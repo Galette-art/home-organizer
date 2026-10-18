@@ -131,14 +131,19 @@
         if (key) localStorage.setItem(key, '1');
         status('初回バックアップを作成しました。自動同期が有効です。');
       } else {
-        const chooseRemote = confirm('このGoogleアカウントにはクラウドデータがあります。クラウドのデータをこの端末に同期しますか？\nOK：クラウドのデータをこの端末に反映\nキャンセル：端末内のデータを維持し、今回は同期しない');
-        if (chooseRemote) {
-          await restoreRemote(remote.data);
+        // Never replace this device's existing data automatically during sign-in.
+        // The explicit choice below only uploads local data; it never restores remote data.
+        const uploadLocal = confirm('このGoogleアカウントにはクラウドデータがあります。今までこの端末で登録したデータを保持するため、端末内のデータを優先します。\n\nOK：端末内のデータをクラウドに保存（クラウド側のデータは上書きされます）\nキャンセル：今回は保存せず、端末内のデータを保持');
+        if (uploadLocal) {
+          if (!local || !Array.isArray(local.locations) || !Array.isArray(local.items) || !Array.isArray(local.tags)) {
+            throw new Error('端末内データを確認できないため、クラウドのデータは変更していません');
+          }
+          await saveSnapshot(local, true);
           if (key) localStorage.setItem(key, '1');
-          status('クラウドのデータをこの端末に同期しました。');
+          status('端末内のデータを保持し、クラウドにバックアップしました。');
         } else {
           if (key) localStorage.setItem(key, '1');
-          status('今回は同期していません。端末内のデータはそのままです。必要な場合は「クラウドにバックアップ」を押してください。');
+          status('端末内のデータを保持しました。クラウドのデータは変更していません。必要な場合は「クラウドにバックアップ」を押してください。');
         }
       }
     } catch (e) {
