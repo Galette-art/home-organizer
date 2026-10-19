@@ -551,6 +551,9 @@ function closeLocationSwipeRows(){
 document.addEventListener('touchstart',e=>{
  const row=e.target.closest&&e.target.closest('[data-location-swipe]');
  if(!row||e.touches.length!==1)return;
+ // A fresh touch means the user is intentionally interacting with this row.
+ // Clear the previous swipe's synthetic-click guard so the first button tap works.
+ delete row.dataset.swipeMoved;
  const t=e.touches[0];row.dataset.swipeStartX=t.clientX;row.dataset.swipeStartY=t.clientY;row.dataset.swipeDx='0';
 },{passive:true});
 document.addEventListener('touchmove',e=>{
