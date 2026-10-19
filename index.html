@@ -534,8 +534,8 @@ function modeLocationRow(x,i,isRoom){
  const handle=placeMode==='edit'?'<span class="drag-handle" aria-label="並び替え">⠿</span>':'';
  return `<div class="location-swipe-row" data-location-swipe="${escAttr(x.id)}">
    <div class="location-swipe-actions" aria-label="${escAttr(x.name)}の操作">
-    <button type="button" class="location-swipe-edit" onclick="closeLocationSwipeRows();openLocationEditor('${x.id}')">編集</button>
-    <button type="button" class="location-swipe-delete" onclick="closeLocationSwipeRows();deleteLocations(['${x.id}'])">削除</button>
+    <button type="button" class="location-swipe-edit" data-location-action="edit">編集</button>
+    <button type="button" class="location-swipe-delete" data-location-action="delete">削除</button>
    </div>
    <div class="location-swipe-content location-manage-row location-admin-row"${dragAttrs}>
     ${handle}
@@ -546,39 +546,108 @@ function modeLocationRow(x,i,isRoom){
  </div>`;
 }
 let openLocationSwipeId=null;
+let activeLocationSwipeTouchRow=null;
+const locationSwipeTouchState=new WeakMap();
+let lastLocationSwipeTouchAction=null;
+let lastLocationSwipeGestureAt=0;
+
 function closeLocationSwipeRows(){
  document.querySelectorAll('.location-swipe-row.open').forEach(row=>row.classList.remove('open'));
  openLocationSwipeId=null;
 }
+function runLocationSwipeAction(button){
+ const row=button&&button.closest('[data-location-swipe]');
+ if(!row||!row.classList.contains('open'))return;
+ const id=row.dataset.locationSwipe;
+ if(!loc(id))return;
+ const action=button.dataset.locationAction;
+ closeLocationSwipeRows();
+ if(action==='edit')openLocationEditor(id);
+ else if(action==='delete')deleteLocations([id]);
+}
+
+// Track touch origin explicitly. Do not rely on the browser's synthesized click
+// to activate Edit/Delete after a touch gesture.
 document.addEventListener('touchstart',e=>{
- const row=e.target.closest&&e.target.closest('[data-location-swipe]');
+ const target=e.target instanceof Element?e.target:null;
+ const row=target&&target.closest('[data-location-swipe]');
+ activeLocationSwipeTouchRow=null;
  if(!row||e.touches.length!==1)return;
- // A fresh touch means the user is intentionally interacting with this row.
- // Clear the previous swipe's synthetic-click guard so the first button tap works.
  delete row.dataset.swipeMoved;
- const t=e.touches[0];row.dataset.swipeStartX=t.clientX;row.dataset.swipeStartY=t.clientY;row.dataset.swipeDx='0';
+ const t=e.touches[0];
+ activeLocationSwipeTouchRow=row;
+ locationSwipeTouchState.set(row,{
+  x:t.clientX,y:t.clientY,
+  actionButton:target.closest('[data-location-action]'),
+  rowWasOpen:row.classList.contains('open')
+ });
 },{passive:true});
-document.addEventListener('touchmove',e=>{
- const row=e.target.closest&&e.target.closest('[data-location-swipe]');
- if(!row||row.dataset.swipeStartX===undefined||e.touches.length!==1)return;
- const t=e.touches[0],dx=t.clientX-Number(row.dataset.swipeStartX),dy=t.clientY-Number(row.dataset.swipeStartY);
- if(Math.abs(dx)>Math.abs(dy)*1.2)row.dataset.swipeDx=String(dx);
-},{passive:true});
+
 document.addEventListener('touchend',e=>{
- const row=e.target.closest&&e.target.closest('[data-location-swipe]');
- if(!row||row.dataset.swipeStartX===undefined)return;
- const dx=Number(row.dataset.swipeDx||0);
- delete row.dataset.swipeStartX;delete row.dataset.swipeStartY;delete row.dataset.swipeDx;
- if(dx < -45){
-  row.dataset.swipeMoved='true';setTimeout(()=>delete row.dataset.swipeMoved,500);
-  closeLocationSwipeRows();row.classList.add('open');openLocationSwipeId=row.dataset.locationSwipe;
- } else if(dx > 45&&row.classList.contains('open')){
-  row.dataset.swipeMoved='true';setTimeout(()=>delete row.dataset.swipeMoved,500);
-  row.classList.remove('open');openLocationSwipeId=null;
+ const row=activeLocationSwipeTouchRow;
+ activeLocationSwipeTouchRow=null;
+ if(!row)return;
+ const state=locationSwipeTouchState.get(row);
+ locationSwipeTouchState.delete(row);
+ if(!state||!e.changedTouches.length)return;
+ const t=e.changedTouches[0],dx=t.clientX-state.x,dy=t.clientY-state.y;
+ const horizontal=Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.2;
+ if(horizontal){
+  lastLocationSwipeGestureAt=Date.now();
+  if(dx < -45){
+   row.dataset.swipeMoved='true';
+   setTimeout(()=>delete row.dataset.swipeMoved,600);
+   closeLocationSwipeRows();
+   row.classList.add('open');
+   openLocationSwipeId=row.dataset.locationSwipe;
+  }else if(dx > 45&&row.classList.contains('open')){
+   row.dataset.swipeMoved='true';
+   setTimeout(()=>delete row.dataset.swipeMoved,600);
+   row.classList.remove('open');
+   openLocationSwipeId=null;
+  }
+  return;
  }
-},{passive:true});
+ const isTap=Math.abs(dx)<14&&Math.abs(dy)<18;
+ const button=state.actionButton;
+ if(isTap&&state.rowWasOpen&&button&&row.contains(button)&&row.classList.contains('open')){
+  if(e.cancelable)e.preventDefault();
+  const stamp=Date.now();
+  lastLocationSwipeTouchAction={button,stamp};
+  // The matching synthetic click is ignored below. Delay the action very slightly
+  // so the browser's compatibility click cannot close a just-opened modal.
+  setTimeout(()=>{
+   runLocationSwipeAction(button);
+   setTimeout(()=>{
+    if(lastLocationSwipeTouchAction&&lastLocationSwipeTouchAction.button===button&&lastLocationSwipeTouchAction.stamp===stamp)
+     lastLocationSwipeTouchAction=null;
+   },900);
+  },40);
+ }
+},{passive:false});
+
 document.addEventListener('click',e=>{
- if(!e.target.closest('[data-location-swipe]')&&!e.target.closest('.location-swipe-actions'))closeLocationSwipeRows();
+ const target=e.target instanceof Element?e.target:null;
+ if(!target)return;
+ const button=target.closest('[data-location-action]');
+ if(button){
+  const now=Date.now();
+  if(lastLocationSwipeTouchAction&&lastLocationSwipeTouchAction.button===button&&now-lastLocationSwipeTouchAction.stamp<1200){
+   // Swallow only the duplicate click corresponding to the touch action already run.
+   if(e.cancelable)e.preventDefault();
+   e.stopPropagation();
+   return;
+  }
+  if(now-lastLocationSwipeGestureAt<450){
+   // Do not let the synthetic click at the end of a swipe activate an exposed action.
+   if(e.cancelable)e.preventDefault();
+   e.stopPropagation();
+   return;
+  }
+  runLocationSwipeAction(button);
+  return;
+ }
+ if(!target.closest('[data-location-swipe]')&&!target.closest('.location-swipe-actions'))closeLocationSwipeRows();
 });
 function deleteCheckedLocations(){
  const ids=[...document.querySelectorAll('.location-delete-check:checked')].map(x=>x.value);
