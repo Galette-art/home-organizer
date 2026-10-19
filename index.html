@@ -141,8 +141,7 @@ html.settings-open,body.settings-open{overflow:hidden!important}
 
 /* Swipe actions for location rows */
 .location-swipe-row{position:relative;overflow:hidden;border-bottom:1px solid var(--line);border-radius:14px;margin:7px 0;touch-action:pan-y}
-.location-swipe-actions{position:absolute;inset:0 0 0 auto;display:flex;align-items:stretch;z-index:3;pointer-events:none}
-.location-swipe-actions button{pointer-events:auto;touch-action:manipulation;cursor:pointer}
+.location-swipe-actions{position:absolute;inset:0 0 0 auto;display:flex;align-items:stretch;z-index:1}
 .location-swipe-actions button{border:0;color:#fff;font:inherit;font-size:13px;font-weight:600;min-width:66px;padding:0 12px}
 .location-swipe-edit{background:#526b59}.location-swipe-delete{background:#b94d42}
 .location-swipe-content{position:relative;z-index:2;background:var(--card);transition:transform .18s ease;min-height:68px;display:flex;align-items:center}
@@ -503,7 +502,7 @@ function renderPlaces(){
   const unassigned=data.items.filter(i=>!i.location||!loc(i.location));
   el.innerHTML=(unassigned.length?`<div class="location-swipe-row unassigned-row"><div class="location-swipe-content"><button type="button" class="location-open-target" onclick="openPlace('__unassigned__')"><span class="location-row-main"><span class="location-type-icon">📥</span><span class="location-row-label">未振り分け</span></span><span class="unassigned-count">${unassigned.length}件　›</span></button></div></div>`:'')+
   `<div class="inline"><div class="section-title" style="margin-right:auto">部屋</div><div class="manage-actions">
-   <button class="btn secondary" onclick="togglePlaceMode(placeMode==='edit'?'normal':'edit')">${placeMode==='edit'?'並び替えを終了':'部屋を並び替え'}</button>
+   <button class="btn secondary" onclick="togglePlaceMode(placeMode==='edit'?'normal':'edit')">${placeMode==='edit'?'管理を終了':'部屋を管理'}</button>
    <button class="btn" onclick="openAddLocation(null)">＋ 部屋を追加</button>
  </div></div>
  <div class="location-manage-list">${children(null).map((x,i)=>modeLocationRow(x,i,true)).join('')}</div>
@@ -533,8 +532,8 @@ function modeLocationRow(x,i,isRoom){
  const handle=placeMode==='edit'?'<span class="drag-handle" aria-label="並び替え">⠿</span>':'';
  return `<div class="location-swipe-row" data-location-swipe="${escAttr(x.id)}">
    <div class="location-swipe-actions" aria-label="${escAttr(x.name)}の操作">
-    <button type="button" class="location-swipe-edit" onclick="closeLocationSwipeRows();openLocationEditor('${x.id}')">編集</button>
-    <button type="button" class="location-swipe-delete" onclick="closeLocationSwipeRows();deleteLocations(['${x.id}'])">削除</button>
+    <button type="button" class="location-swipe-edit" onclick="if(this.closest('.location-swipe-row').dataset.swipeMoved==='true')return;closeLocationSwipeRows();openLocationEditor('${x.id}')">編集</button>
+    <button type="button" class="location-swipe-delete" onclick="if(this.closest('.location-swipe-row').dataset.swipeMoved==='true')return;closeLocationSwipeRows();deleteLocations(['${x.id}'])">削除</button>
    </div>
    <div class="location-swipe-content location-manage-row location-admin-row"${dragAttrs}>
     ${handle}
