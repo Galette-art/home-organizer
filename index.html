@@ -189,7 +189,7 @@ html.settings-open,body.settings-open{overflow:hidden!important}
     <div id="locationLevels" class="location-levels"></div>
     <label>タグ</label><div id="addTagChips" class="chips"></div><input id="itemTags" type="hidden">
     <label>メモ</label><textarea id="itemMemo" placeholder="自由にメモ"></textarea>
-    <label>写真</label><input id="itemPhoto" type="file" accept="image/*" capture="environment">
+    <label>写真</label><input id="itemPhoto" type="file" accept="image/*">
     <img id="photoPreview" class="photo-preview hidden">
     <div class="actions">
       <button class="btn" type="submit">登録する</button>
@@ -673,7 +673,7 @@ function openLocationEditor(id){
    '<label for="locationEditName">場所の名称</label>'+
    '<input id="locationEditName" type="text" value="'+escAttr(p.name)+'" autocomplete="off">'+
    '<label for="locationEditPhoto">写真</label>'+
-   '<input id="locationEditPhoto" type="file" accept="image/*" capture="environment">'+
+   '<input id="locationEditPhoto" type="file" accept="image/*">'+
    '<div class="small">写真を選ばなければ、現在の写真をそのまま使います。</div>'+
    '<img id="locationEditPhotoPreview" class="photo-preview '+(currentPhoto?'':'hidden')+'" '+(currentPhoto?'src="'+currentPhoto+'"':'')+'>'+
    '<div id="locationEditError" class="small"></div>'+
@@ -1109,7 +1109,7 @@ function showDetail(id){
 }
 function editItem(id){
  const i=data.items.find(x=>x.id===id);if(!i)return;
- document.getElementById('detailScreen').innerHTML=`<button class="back" onclick="showScreen('searchScreen')">← 検索に戻る</button><div class="section-title">物を編集</div><div class="editor form"><label>品名 *</label><input id="editName" value="${escAttr(i.name)}"><label>配置</label><div id="editLocationArea"></div><label>タグ</label><div id="editTagChips" class="chips"></div><input id="editTags" type="hidden" value="${escAttr((i.tags||[]).join('|'))}"><label>メモ</label><textarea id="editMemo">${esc(i.memo||'')}</textarea><label>写真</label><input id="editPhoto" type="file" accept="image/*" capture="environment"><img id="editPhotoPreview" class="photo-preview ${photoSrc(i.photo)?'':'hidden'}" ${photoSrc(i.photo)?`src="${photoSrc(i.photo)}"`:''} data-ref="${escAttr(i.photo||'')}"><div class="actions"><button class="btn" onclick="saveItemEdit('${i.id}')">保存</button><button class="btn secondary" onclick="showScreen('searchScreen')">キャンセル</button></div></div>`;
+ document.getElementById('detailScreen').innerHTML=`<button class="back" onclick="showScreen('searchScreen')">← 検索に戻る</button><div class="section-title">物を編集</div><div class="editor form"><label>品名 *</label><input id="editName" value="${escAttr(i.name)}"><label>配置</label><div id="editLocationArea"></div><label>タグ</label><div id="editTagChips" class="chips"></div><input id="editTags" type="hidden" value="${escAttr((i.tags||[]).join('|'))}"><label>メモ</label><textarea id="editMemo">${esc(i.memo||'')}</textarea><label>写真</label><input id="editPhoto" type="file" accept="image/*"><img id="editPhotoPreview" class="photo-preview ${photoSrc(i.photo)?'':'hidden'}" ${photoSrc(i.photo)?`src="${photoSrc(i.photo)}"`:''} data-ref="${escAttr(i.photo||'')}"><div class="actions"><button class="btn" onclick="saveItemEdit('${i.id}')">保存</button><button class="btn secondary" onclick="showScreen('searchScreen')">キャンセル</button></div></div>`;
  renderEditLocation(i.location);renderEditTags();
  document.getElementById('editPhoto').onchange=async e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
  r.onload=async()=>{try{
