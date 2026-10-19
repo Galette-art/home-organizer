@@ -502,7 +502,7 @@ function renderPlaces(){
   const unassigned=data.items.filter(i=>!i.location||!loc(i.location));
   el.innerHTML=(unassigned.length?`<div class="location-swipe-row unassigned-row"><div class="location-swipe-content"><button type="button" class="location-open-target" onclick="openPlace('__unassigned__')"><span class="location-row-main"><span class="location-type-icon">📥</span><span class="location-row-label">未振り分け</span></span><span class="unassigned-count">${unassigned.length}件　›</span></button></div></div>`:'')+
   `<div class="inline"><div class="section-title" style="margin-right:auto">部屋</div><div class="manage-actions">
-   <button class="btn secondary" onclick="togglePlaceMode(placeMode==='edit'?'normal':'edit')">${placeMode==='edit'?'管理を終了':'部屋を管理'}</button>
+   <button class="btn secondary" onclick="togglePlaceMode(placeMode==='edit'?'normal':'edit')">${placeMode==='edit'?'並び替えを終了':'部屋を並び替え'}</button>
    <button class="btn" onclick="openAddLocation(null)">＋ 部屋を追加</button>
  </div></div>
  <div class="location-manage-list">${children(null).map((x,i)=>modeLocationRow(x,i,true)).join('')}</div>
