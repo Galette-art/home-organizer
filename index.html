@@ -141,7 +141,9 @@ html.settings-open,body.settings-open{overflow:hidden!important}
 
 /* Swipe actions for location rows */
 .location-swipe-row{position:relative;overflow:hidden;border-bottom:1px solid var(--line);border-radius:14px;margin:7px 0;touch-action:pan-y}
-.location-swipe-actions{position:absolute;inset:0 0 0 auto;display:flex;align-items:stretch;z-index:1}
+.location-swipe-actions{position:absolute;inset:0 0 0 auto;display:flex;align-items:stretch;z-index:3;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .12s ease}
+.location-swipe-row.open .location-swipe-actions{visibility:visible;opacity:1;pointer-events:auto}
+.location-swipe-actions button{touch-action:manipulation;cursor:pointer}
 .location-swipe-actions button{border:0;color:#fff;font:inherit;font-size:13px;font-weight:600;min-width:66px;padding:0 12px}
 .location-swipe-edit{background:#526b59}.location-swipe-delete{background:#b94d42}
 .location-swipe-content{position:relative;z-index:2;background:var(--card);transition:transform .18s ease;min-height:68px;display:flex;align-items:center}
@@ -532,8 +534,8 @@ function modeLocationRow(x,i,isRoom){
  const handle=placeMode==='edit'?'<span class="drag-handle" aria-label="並び替え">⠿</span>':'';
  return `<div class="location-swipe-row" data-location-swipe="${escAttr(x.id)}">
    <div class="location-swipe-actions" aria-label="${escAttr(x.name)}の操作">
-    <button type="button" class="location-swipe-edit" onclick="if(this.closest('.location-swipe-row').dataset.swipeMoved==='true')return;closeLocationSwipeRows();openLocationEditor('${x.id}')">編集</button>
-    <button type="button" class="location-swipe-delete" onclick="if(this.closest('.location-swipe-row').dataset.swipeMoved==='true')return;closeLocationSwipeRows();deleteLocations(['${x.id}'])">削除</button>
+    <button type="button" class="location-swipe-edit" onclick="closeLocationSwipeRows();openLocationEditor('${x.id}')">編集</button>
+    <button type="button" class="location-swipe-delete" onclick="closeLocationSwipeRows();deleteLocations(['${x.id}'])">削除</button>
    </div>
    <div class="location-swipe-content location-manage-row location-admin-row"${dragAttrs}>
     ${handle}
