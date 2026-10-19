@@ -428,7 +428,7 @@ document.querySelectorAll('.nav').forEach(x=>x.classList.toggle('active',x.datas
 
 function itemCard(i){
  const photo=photoSrc(i.photo)?`<img class="thumb" src="${photoSrc(i.photo)}">`:`<div class="thumb empty">📦</div>`;
- return `<div class="card item-card" onclick="showDetail('${i.id}')">${photo}<div class="item-info"><div class="item-name">${esc(i.name)}</div><div class="location">📍 ${esc(path(i.location))}</div><div class="tags">${(i.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div><div class="manage-actions search-item-actions"><button class="btn secondary" type="button" onclick="event.stopPropagation();editItem('${i.id}')">編集</button><button class="btn secondary" type="button" onclick="event.stopPropagation();deleteItem('${i.id}')">削除</button></div></div></div>`;
+ return `<div class="card item-card" onclick="showDetail('${i.id}')">${photo}<div class="item-info"><div class="item-name">${esc(i.name)}</div><div class="location">📍 ${esc(i.location&&loc(i.location)?path(i.location):'未振り分け')}</div><div class="tags">${(i.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div><div class="manage-actions search-item-actions"><button class="btn secondary" type="button" onclick="event.stopPropagation();editItem('${i.id}')">編集</button><button class="btn secondary" type="button" onclick="event.stopPropagation();deleteItem('${i.id}')">削除</button></div></div></div>`;
 }
 function renderSearch(){
  const q=document.getElementById('searchInput').value.trim().toLowerCase();
@@ -1161,7 +1161,9 @@ function editItem(id){
 }
 function renderEditLocation(location){
  let chain=[],x=loc(location);while(x){chain.unshift(x.id);x=loc(x.parent)}editPath=chain;
- const area=document.getElementById('editLocationArea');area.innerHTML='';let parent=null;
+ const area=document.getElementById('editLocationArea');area.innerHTML='';
+ if(!chain.length){const sel=document.createElement('select');sel.className='location-select';sel.innerHTML='<option value="">未振り分け</option>'+children(null).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');sel.value='';sel.onchange=()=>{editPath=sel.value?[sel.value]:[];renderEditLocation(sel.value||null)};area.appendChild(sel);return}
+ let parent=null;
  editPath.forEach((id,level)=>{
   const sel=document.createElement('select');sel.className='location-select';sel.innerHTML=data.locations.filter(x=>x.parent===parent).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');sel.value=id;
   sel.onchange=()=>{editPath=editPath.slice(0,level);if(sel.value)editPath.push(sel.value);renderEditLocation(editPath.at(-1))};
