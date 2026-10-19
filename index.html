@@ -121,6 +121,17 @@ main{padding:10px 18px 108px}
 @media(max-width:380px){.settings-backup-panel .backup-actions{grid-template-columns:1fr}.settings-backup-panel .backup-actions .btn{min-height:48px}}
 html.settings-open,body.settings-open{overflow:hidden!important}
 
+/* Swipe actions for location rows */
+.location-swipe-row{position:relative;overflow:hidden;border-bottom:1px solid var(--line);border-radius:14px;margin:7px 0;touch-action:pan-y}
+.location-swipe-actions{position:absolute;inset:0 0 0 auto;display:flex;align-items:stretch;z-index:1}
+.location-swipe-actions button{border:0;color:#fff;font:600 13px inherit;min-width:66px;padding:0 12px}
+.location-swipe-edit{background:#526b59}.location-swipe-delete{background:#b94d42}
+.location-swipe-content{position:relative;z-index:2;background:var(--card);transition:transform .18s ease;min-height:68px;display:flex;align-items:center}
+.location-swipe-content .location-open-target{width:100%;border:0;box-shadow:none;border-radius:0;background:transparent}
+.location-swipe-row.open .location-swipe-content{transform:translateX(-132px)}
+.location-swipe-row .location-admin-row{border:0;margin:0}
+.unassigned-row{border:1px solid #e4ddcf;border-radius:16px;background:#f5f1e8;margin:0 0 12px;padding:0 10px}
+.unassigned-count{font-size:12px;color:var(--muted);white-space:nowrap}
 /* Show each saved location photo beside its name in hierarchy lists. */
 .location-row-main{display:flex;flex:1;align-items:center;gap:12px;min-width:0}
 .location-list-photo,.location-type-icon{width:56px;height:56px;flex:0 0 56px;border-radius:12px}
@@ -450,15 +461,20 @@ function goBackPlace(){placeMode='normal';const p=loc(currentPlace);currentPlace
 
 function renderPlaces(){
  const el=document.getElementById('placeContent');
+ if(currentPlace==='__unassigned__'){
+  const unassigned=data.items.filter(i=>!i.location||!loc(i.location));
+  el.innerHTML='<button class="back" onclick="openPlaceRoot()">← 場所に戻る</button><div class="section-title">未振り分け</div>'+
+   (unassigned.length?unassigned.map(itemCard).join(''):'<div class="empty-state">未振り分けの物はありません</div>');
+  return;
+ }
  if(!currentPlace){
-  el.innerHTML=`<div class="inline"><div class="section-title" style="margin-right:auto">部屋</div><div class="manage-actions">
+  const unassigned=data.items.filter(i=>!i.location||!loc(i.location));
+  el.innerHTML=(unassigned.length?`<div class="location-swipe-row unassigned-row"><div class="location-swipe-content"><button type="button" class="location-open-target" onclick="openPlace('__unassigned__')"><span class="location-row-main"><span class="location-type-icon">📥</span><span class="location-row-label">未振り分け</span></span><span class="unassigned-count">${unassigned.length}件　›</span></button></div></div>`:'')+
+  `<div class="inline"><div class="section-title" style="margin-right:auto">部屋</div><div class="manage-actions">
    <button class="btn secondary" onclick="togglePlaceMode(placeMode==='edit'?'normal':'edit')">${placeMode==='edit'?'管理を終了':'部屋を管理'}</button>
    <button class="btn" onclick="openAddLocation(null)">＋ 部屋を追加</button>
  </div></div>
- <div class="location-manage-list">${children(null).map((x,i)=>modeLocationRow(x,i,true)).join('')}</div>
-
-
- `;
+ <div class="location-manage-list">${children(null).map((x,i)=>modeLocationRow(x,i,true)).join('')}</div>`;
   return;
  }
  const p=loc(currentPlace);if(!p){currentPlace=null;return renderPlaces()}
@@ -480,20 +496,48 @@ function modeLocationRow(x,i,isRoom){
  const visual=src
   ? `<span class="location-row-main"><img class="location-list-photo" src="${escAttr(src)}" alt="${escAttr(x.name)}の写真" decoding="async" onerror="this.onerror=null;this.classList.add('hidden');this.nextElementSibling.classList.remove('hidden')"><span class="location-type-icon hidden" aria-hidden="true">${icon(x.type)}</span><span class="location-row-label">${esc(x.name)}</span></span>`
   : `<span class="location-row-main"><span class="location-type-icon" aria-hidden="true">${icon(x.type)}</span><span class="location-row-label">${esc(x.name)}</span></span>`;
- if(placeMode==='edit') return `<div class="location-manage-row location-admin-row" draggable="true" ondragstart="startLocationDrag(event,'${x.id}')" ondragover="allowLocationDrop(event)" ondrop="dropLocation(event,'${x.id}')" ondragend="endLocationDrag(event)">
-   <span class="drag-handle" aria-label="並び替え">⠿</span>
-   <div class="location-admin-name">${visual}</div>
-   <div class="location-admin-actions">
-    <button type="button" class="btn secondary" onclick="openLocationEditor('${x.id}')">編集</button>
-    <button type="button" class="btn secondary" onclick="deleteLocations(['${x.id}'])">削除</button>
+ const dragAttrs=placeMode==='edit'?` draggable="true" ondragstart="startLocationDrag(event,'${x.id}')" ondragover="allowLocationDrop(event)" ondrop="dropLocation(event,'${x.id}')" ondragend="endLocationDrag(event)"`:'';
+ const handle=placeMode==='edit'?'<span class="drag-handle" aria-label="並び替え">⠿</span>':'';
+ return `<div class="location-swipe-row" data-location-swipe="${escAttr(x.id)}">
+   <div class="location-swipe-actions" aria-label="${escAttr(x.name)}の操作">
+    <button type="button" class="location-swipe-edit" onclick="closeLocationSwipeRows();openLocationEditor('${x.id}')">編集</button>
+    <button type="button" class="location-swipe-delete" onclick="closeLocationSwipeRows();deleteLocations(['${x.id}'])">削除</button>
+   </div>
+   <div class="location-swipe-content location-manage-row location-admin-row"${dragAttrs}>
+    ${handle}
+    <button type="button" class="location-open-target" onclick="if(!this.closest('.location-swipe-row').classList.contains('open'))openPlace('${x.id}');else closeLocationSwipeRows()">
+     ${visual}<span aria-hidden="true">›</span>
+    </button>
    </div>
  </div>`;
- return `<div class="location-manage-row">
-   <button type="button" class="location-open-target" onclick="openPlace('${x.id}')">
-     ${visual}<span aria-hidden="true">›</span>
-   </button>
- </div>`;
 }
+let openLocationSwipeId=null;
+function closeLocationSwipeRows(){
+ document.querySelectorAll('.location-swipe-row.open').forEach(row=>row.classList.remove('open'));
+ openLocationSwipeId=null;
+}
+document.addEventListener('touchstart',e=>{
+ const row=e.target.closest&&e.target.closest('[data-location-swipe]');
+ if(!row||e.touches.length!==1)return;
+ const t=e.touches[0];row.dataset.swipeStartX=t.clientX;row.dataset.swipeStartY=t.clientY;row.dataset.swipeDx='0';
+},{passive:true});
+document.addEventListener('touchmove',e=>{
+ const row=e.target.closest&&e.target.closest('[data-location-swipe]');
+ if(!row||row.dataset.swipeStartX===undefined||e.touches.length!==1)return;
+ const t=e.touches[0],dx=t.clientX-Number(row.dataset.swipeStartX),dy=t.clientY-Number(row.dataset.swipeStartY);
+ if(Math.abs(dx)>Math.abs(dy)*1.2)row.dataset.swipeDx=String(dx);
+},{passive:true});
+document.addEventListener('touchend',e=>{
+ const row=e.target.closest&&e.target.closest('[data-location-swipe]');
+ if(!row||row.dataset.swipeStartX===undefined)return;
+ const dx=Number(row.dataset.swipeDx||0);
+ delete row.dataset.swipeStartX;delete row.dataset.swipeStartY;delete row.dataset.swipeDx;
+ if(dx < -45){closeLocationSwipeRows();row.classList.add('open');openLocationSwipeId=row.dataset.locationSwipe;}
+ else if(dx > 45&&row.classList.contains('open')){row.classList.remove('open');openLocationSwipeId=null;}
+},{passive:true});
+document.addEventListener('click',e=>{
+ if(!e.target.closest('[data-location-swipe]')&&!e.target.closest('.location-swipe-actions'))closeLocationSwipeRows();
+});
 function deleteCheckedLocations(){
  const ids=[...document.querySelectorAll('.location-delete-check:checked')].map(x=>x.value);
  if(!ids.length){openAppMessage('項目を選択してください','削除する項目にチェックを入れてください。');return}
@@ -714,29 +758,42 @@ function deleteCurrentPlace(){
  const p=loc(currentPlace);if(!p)return;
  deleteLocations([p.id]);
 }
-function deleteLocations(ids){
+function collectLocationDescendants(ids){
  const all=new Set(ids);let changed=true;
- while(changed){
-  changed=false;
-  data.locations.forEach(x=>{
-   if(x.parent&&all.has(x.parent)&&!all.has(x.id)){all.add(x.id);changed=true}
-  });
- }
- const itemCount=data.items.filter(i=>all.has(i.location)).length;
- const parent=loc(ids[0])?.parent||null;
- openAppConfirm('場所を削除','選択した'+ids.length+'件を削除しますか？\\n下位階層'+(all.size-ids.length)+'件、登録物'+itemCount+'件も削除対象になります。',()=>performDeleteLocations(ids,parent),'削除する');
+ while(changed){changed=false;data.locations.forEach(x=>{if(x.parent&&all.has(x.parent)&&!all.has(x.id)){all.add(x.id);changed=true}})}
+ return all;
 }
-function performDeleteLocations(ids,parent){
- const all=new Set(ids);let changed=true;
- while(changed){
-  changed=false;
-  data.locations.forEach(x=>{
-   if(x.parent&&all.has(x.parent)&&!all.has(x.id)){all.add(x.id);changed=true}
-  });
- }
+function deleteLocations(ids){
+ const validIds=ids.filter(id=>loc(id));
+ if(!validIds.length)return;
+ const all=collectLocationDescendants(validIds);
+ const affected=data.items.filter(i=>all.has(i.location));
+ const parent=loc(validIds[0])?.parent||null;
+ const countByType={room:0,storage:0,drawer:0,shelf:0};
+ all.forEach(id=>{const l=loc(id);if(l)countByType[l.type]=(countByType[l.type]||0)+1});
+ const content=document.getElementById('modalContent'),overlay=document.getElementById('modalOverlay');
+ if(!content||!overlay)return;
+ content.innerHTML='<h3>場所を削除</h3><div class="subtle">削除する場所と配下の情報を確認してください。</div>'+
+ '<div class="card"><b>場所</b><div class="subtle">選択 '+validIds.length+'件・配下 '+(all.size-validIds.length)+'件</div><b>登録品 '+affected.length+'件</b></div>'+
+ '<div class="subtle">登録品の扱いを選択してください。</div>'+
+ '<label class="check-row"><input type="radio" name="locationDeleteMode" value="unassigned" checked><span><b>登録品を残す</b><br><small>登録品を未振り分けに移動します。写真・メモ・タグは保持します。</small></span></label>'+
+ '<label class="check-row"><input type="radio" name="locationDeleteMode" value="delete"><span><b>登録品も削除する</b><br><small>配下の登録品も削除します。この操作は取り消せません。</small></span></label>'+
+ '<div class="modal-actions"><button id="locationDeleteCancel" class="btn secondary" type="button">キャンセル</button><button id="locationDeleteConfirm" class="btn" type="button">削除する</button></div>';
+ document.getElementById('locationDeleteCancel').onclick=closeModal;
+ document.getElementById('locationDeleteConfirm').onclick=()=>{
+  const mode=document.querySelector('input[name="locationDeleteMode"]:checked')?.value||'unassigned';
+  closeModal();performDeleteLocations(validIds,parent,mode);
+ };
+ lockPageForModal();overlay.classList.add('show');syncModalViewport();
+}
+function performDeleteLocations(ids,parent,mode='unassigned'){
+ const all=collectLocationDescendants(ids);
+ const affected=data.items.filter(i=>all.has(i.location));
  data.locations=data.locations.filter(x=>!all.has(x.id));
- data.items=data.items.filter(i=>!all.has(i.location));
- save();currentPlace=parent||null;renderPlaces();showToast('場所を削除しました。');
+ if(mode==='delete')data.items=data.items.filter(i=>!all.has(i.location));
+ else affected.forEach(i=>{i.location=null});
+ save();currentPlace=parent||null;renderPlaces();
+ showToast(mode==='delete'?'場所と登録品を削除しました。':'場所を削除し、登録品を未振り分けに移動しました。');
 }
 function deleteSubLocations(){
  const ch=children(currentPlace);
@@ -1156,63 +1213,7 @@ document.querySelectorAll('.nav').forEach(n=>n.addEventListener('click',()=>{
  if(window.CloudSync)await window.CloudSync.init();
 })();
 
-// Swipe anywhere on the page to switch tabs. Preserve vertical scrolling and form interaction.
-let mainSwipeStart = null;
-let mainSwipeClaimed = false;
-document.addEventListener('touchstart', e => {
-  if (e.touches.length !== 1 || document.getElementById('modalOverlay')?.classList.contains('show')) {
-    mainSwipeStart = null;
-    mainSwipeClaimed = false;
-    return;
-  }
-  const target = e.target instanceof Element ? e.target : null;
-  if (!target || target.closest('#modalOverlay, [draggable="true"], .drag-handle')) {
-    mainSwipeStart = null;
-    mainSwipeClaimed = false;
-    return;
-  }
-  const touch = e.touches[0];
-  mainSwipeStart = {x: touch.clientX, y: touch.clientY};
-  mainSwipeClaimed = false;
-}, {passive: true});
-
-document.addEventListener('touchmove', e => {
-  if (!mainSwipeStart || e.touches.length !== 1) return;
-  const touch = e.touches[0];
-  const dx = touch.clientX - mainSwipeStart.x;
-  const dy = touch.clientY - mainSwipeStart.y;
-  if (Math.abs(dx) >= 12 && Math.abs(dx) > Math.abs(dy) * 1.15) {
-    mainSwipeClaimed = true;
-    if (e.cancelable) e.preventDefault();
-  }
-}, {passive: false});
-
-const resetMainSwipe = () => {
-  mainSwipeStart = null;
-  mainSwipeClaimed = false;
-};
-document.addEventListener('touchcancel', resetMainSwipe, {passive: true});
-document.addEventListener('touchend', e => {
-  if (!mainSwipeStart || e.changedTouches.length !== 1) {
-    resetMainSwipe();
-    return;
-  }
-  const start = mainSwipeStart;
-  const touch = e.changedTouches[0];
-  const dx = touch.clientX - start.x;
-  const dy = touch.clientY - start.y;
-  const wasClaimed = mainSwipeClaimed;
-  resetMainSwipe();
-  if (!wasClaimed || Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy) * 1.15) return;
-  const tabs = ['searchScreen', 'placeScreen', 'addScreen'];
-  const active = document.querySelector('.nav.active');
-  const current = active ? tabs.indexOf(active.dataset.screen) : -1;
-  if (current < 0) return;
-  const next = current + (dx < 0 ? 1 : -1);
-  if (next < 0 || next >= tabs.length) return;
-  const button = document.querySelector('.nav[data-screen="' + tabs[next] + '"]');
-  if (button) button.click();
-}, {passive: true});
+// Screen changes are controlled by the bottom navigation; global tab-swipe navigation is intentionally disabled.
 
 // Keep Chrome's PWA installability check satisfied on Android without changing app behavior.
 if('serviceWorker' in navigator){
