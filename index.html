@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f6f6f3">
-<link rel="manifest" href="manifest.json?v=20261020-1">
-<link rel="apple-touch-icon" href="icons/icon-192.png?v=20261020-1">
+<link rel="manifest" href="manifest.json?v=20261021-1">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=20261021-1">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- BUILD: 2026-10-20-optional-quantity-v1 -->
+<!-- BUILD: 2026-10-21-search-item-swipe-v1 -->
 <title>自宅の整理整頓</title>
 <style>
 :root{--bg:#f6f6f3;--card:#fff;--text:#222;--muted:#777;--line:#e5e5e0}
@@ -156,6 +156,22 @@ html.settings-open,body.settings-open{overflow:hidden!important}
 .location-swipe-row .location-admin-row{border:0;margin:0}
 .unassigned-row{border:1px solid #e4ddcf;border-radius:16px;background:#f5f1e8;margin:0 0 12px;padding:0 10px}
 .unassigned-count{font-size:12px;color:var(--muted);white-space:nowrap}
+/* Item-row swipe actions: keep the item name in view by narrowing the card, not translating it. */
+.item-swipe-row{position:relative;overflow:hidden;border-radius:20px;margin:9px 0;touch-action:pan-y;isolation:isolate}
+.item-swipe-actions{position:absolute;inset:0 0 0 auto;width:116px;display:flex;align-items:stretch;z-index:3;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .12s ease;overflow:hidden;border-radius:0 20px 20px 0}
+.item-swipe-row.open .item-swipe-actions{visibility:visible;opacity:1;pointer-events:auto}
+.item-swipe-actions button{border:0;color:#fff;font:inherit;font-size:13px;font-weight:600;min-width:58px;width:58px;padding:0 6px;touch-action:manipulation;cursor:pointer}
+.item-swipe-edit{background:#526b59}.item-swipe-delete{background:#b94d42}
+.item-swipe-content{position:relative;z-index:2;width:100%;min-width:0;transition:width .18s ease}
+.item-swipe-content .item-card{margin:0;min-width:0;height:100%;cursor:pointer}
+.item-swipe-row.open .item-swipe-content{width:calc(100% - 116px)}
+.item-swipe-row.open .item-swipe-content .item-card{gap:9px;padding:12px;border-radius:20px 0 0 20px;box-shadow:none}
+.item-swipe-row.open .item-swipe-content .thumb{width:50px;height:50px;border-radius:11px}
+.item-swipe-content .item-info{flex:1;min-width:0;overflow-wrap:anywhere}
+.item-swipe-row.open .item-name,.item-swipe-row.open .location{overflow-wrap:anywhere}
+.item-swipe-row.open .item-swipe-content .item-name{line-height:1.4;word-break:normal}
+@media(max-width:360px){.item-swipe-row.open .item-swipe-content .thumb{width:44px;height:44px}.item-swipe-row.open .item-swipe-content .item-card{gap:7px;padding:10px}}
+
 </style>
 </head>
 <body>
@@ -495,8 +511,25 @@ function quantityProperty(inputId){
  return quantity===null?{}:{quantity};
 }
 function itemCard(i){
- const photo=photoSrc(i.photo)?`<img class="thumb" src="${photoSrc(i.photo)}">`:`<div class="thumb empty">📦</div>`;
- return `<div class="card item-card" onclick="showDetail('${i.id}')">${photo}<div class="item-info"><div class="item-name">${esc(i.name)}</div><div class="location">📍 ${esc(path(i.location))}</div>${quantityMarkup(i.quantity)}<div class="tags">${(i.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div><div class="manage-actions search-item-actions"><button class="btn secondary" type="button" onclick="event.stopPropagation();editItem('${i.id}')">編集</button><button class="btn secondary" type="button" onclick="event.stopPropagation();deleteItem('${i.id}')">削除</button></div></div></div>`;
+ const id=escAttr(i.id);
+ const photo=photoSrc(i.photo)?`<img class="thumb" src="${escAttr(photoSrc(i.photo))}" alt="${escAttr(i.name)}の写真">`:`<div class="thumb empty" aria-hidden="true">📦</div>`;
+ return `<div class="item-swipe-row" data-item-swipe="${id}">
+  <div class="item-swipe-actions" aria-label="${escAttr(i.name)}の操作">
+   <button type="button" class="item-swipe-edit" data-item-action="edit" aria-label="${escAttr(i.name)}を編集">編集</button>
+   <button type="button" class="item-swipe-delete" data-item-action="delete" aria-label="${escAttr(i.name)}を削除">削除</button>
+  </div>
+  <div class="item-swipe-content">
+   <div class="card item-card" data-item-open="${id}">
+    ${photo}
+    <div class="item-info">
+     <div class="item-name">${esc(i.name)}</div>
+     <div class="location">📍 ${esc(path(i.location))}</div>
+     ${quantityMarkup(i.quantity)}
+     <div class="tags">${(i.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>
+    </div>
+   </div>
+  </div>
+ </div>`;
 }
 function renderSearch(){
  const q=document.getElementById('searchInput').value.trim().toLowerCase();
@@ -695,6 +728,112 @@ document.addEventListener('click',e=>{
  }
  if(!target.closest('[data-location-swipe]')&&!target.closest('.location-swipe-actions'))closeLocationSwipeRows();
 });
+
+let openItemSwipeId=null;
+let activeItemSwipeTouchRow=null;
+const itemSwipeTouchState=new WeakMap();
+let lastItemSwipeTouchAction=null;
+let lastItemSwipeGestureAt=0;
+
+function closeItemSwipeRows(){
+ document.querySelectorAll('.item-swipe-row.open').forEach(row=>row.classList.remove('open'));
+ openItemSwipeId=null;
+}
+function runItemSwipeAction(button){
+ const row=button&&button.closest('[data-item-swipe]');
+ if(!row||!row.classList.contains('open'))return;
+ const id=row.dataset.itemSwipe;
+ if(!data.items.some(item=>item.id===id))return;
+ const action=button.dataset.itemAction;
+ closeItemSwipeRows();
+ if(action==='edit')editItem(id);
+ else if(action==='delete')deleteItem(id);
+}
+
+// Track touch origin so the synthetic click after a swipe cannot open the item accidentally.
+document.addEventListener('touchstart',e=>{
+ const target=e.target instanceof Element?e.target:null;
+ const row=target&&target.closest('[data-item-swipe]');
+ activeItemSwipeTouchRow=null;
+ if(!row||e.touches.length!==1)return;
+ delete row.dataset.swipeMoved;
+ const t=e.touches[0];
+ activeItemSwipeTouchRow=row;
+ itemSwipeTouchState.set(row,{
+  x:t.clientX,y:t.clientY,
+  actionButton:target.closest('[data-item-action]'),
+  rowWasOpen:row.classList.contains('open')
+ });
+},{passive:true});
+
+document.addEventListener('touchend',e=>{
+ const row=activeItemSwipeTouchRow;
+ activeItemSwipeTouchRow=null;
+ if(!row)return;
+ const state=itemSwipeTouchState.get(row);
+ itemSwipeTouchState.delete(row);
+ if(!state||!e.changedTouches.length)return;
+ const t=e.changedTouches[0],dx=t.clientX-state.x,dy=t.clientY-state.y;
+ const horizontal=Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.2;
+ if(horizontal){
+  lastItemSwipeGestureAt=Date.now();
+  row.dataset.swipeMoved='true';
+  setTimeout(()=>delete row.dataset.swipeMoved,600);
+  if(dx < -45){
+   closeItemSwipeRows();
+   closeLocationSwipeRows();
+   row.classList.add('open');
+   openItemSwipeId=row.dataset.itemSwipe;
+  }else if(dx > 45){
+   closeItemSwipeRows();
+  }
+  return;
+ }
+ const isTap=Math.abs(dx)<14&&Math.abs(dy)<18;
+ const button=state.actionButton;
+ if(isTap&&state.rowWasOpen&&button&&row.contains(button)&&row.classList.contains('open')){
+  if(e.cancelable)e.preventDefault();
+  const stamp=Date.now();
+  lastItemSwipeTouchAction={button,stamp};
+  setTimeout(()=>{
+   runItemSwipeAction(button);
+   setTimeout(()=>{
+    if(lastItemSwipeTouchAction&&lastItemSwipeTouchAction.button===button&&lastItemSwipeTouchAction.stamp===stamp)
+     lastItemSwipeTouchAction=null;
+   },900);
+  },40);
+ }
+},{passive:false});
+
+document.addEventListener('click',e=>{
+ const target=e.target instanceof Element?e.target:null;
+ if(!target)return;
+ const button=target.closest('[data-item-action]');
+ if(button){
+  const now=Date.now();
+  if(lastItemSwipeTouchAction&&lastItemSwipeTouchAction.button===button&&now-lastItemSwipeTouchAction.stamp<1200){
+   if(e.cancelable)e.preventDefault();
+   e.stopPropagation();
+   return;
+  }
+  if(now-lastItemSwipeGestureAt<450){
+   if(e.cancelable)e.preventDefault();
+   e.stopPropagation();
+   return;
+  }
+  runItemSwipeAction(button);
+  return;
+ }
+ const openTarget=target.closest('[data-item-open]');
+ if(openTarget){
+  const row=openTarget.closest('[data-item-swipe]');
+  if(row&&row.dataset.swipeMoved==='true')return;
+  showDetail(openTarget.dataset.itemOpen);
+  return;
+ }
+ if(!target.closest('[data-item-swipe]'))closeItemSwipeRows();
+});
+
 function deleteCheckedLocations(){
  const ids=[...document.querySelectorAll('.location-delete-check:checked')].map(x=>x.value);
  if(!ids.length){openAppMessage('項目を選択してください','削除する項目にチェックを入れてください。');return}
@@ -1300,6 +1439,7 @@ function registerAndContinueSameLocation(){
 
 
 function showDetail(id){
+ closeItemSwipeRows();
  const i=data.items.find(x=>x.id===id);if(!i)return;
  document.getElementById('detailScreen').innerHTML=`<button class="back" onclick="showScreen('searchScreen')">← 検索に戻る</button>${photoSrc(i.photo)?`<img class="detail-photo" src="${photoSrc(i.photo)}">`:''}<div class="detail-title">${esc(i.name)}</div><div class="location">📍 ${esc(path(i.location))}</div>${quantityMarkup(i.quantity)}<div class="tags">${(i.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>${i.memo?`<div class="card">${esc(i.memo)}</div>`:''}<div class="actions"><button class="btn" onclick="editItem('${i.id}')">編集</button><button class="btn secondary" onclick="deleteItem('${i.id}')">削除</button></div>`;
  showScreen('detailScreen');
