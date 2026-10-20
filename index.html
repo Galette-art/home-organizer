@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f6f6f3">
-<link rel="manifest" href="manifest.json?v=20261018-3">
-<link rel="apple-touch-icon" href="icons/icon-192.png?v=20261018-3">
+<link rel="manifest" href="manifest.json?v=20261020-1">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=20261020-1">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- BUILD: 2026-10-18-location-photo-thumbnails-v3 -->
+<!-- BUILD: 2026-10-20-optional-quantity-v1 -->
 <title>自宅の整理整頓</title>
 <style>
 :root{--bg:#f6f6f3;--card:#fff;--text:#222;--muted:#777;--line:#e5e5e0}
@@ -49,6 +49,10 @@ main{padding:8px 16px 92px}.screen{display:none}.screen.active{display:block}
 .location-admin-actions .btn{padding:8px 11px;font-size:12px;white-space:nowrap;margin:0;box-shadow:none}
 
 
+.quantity-control{display:flex;align-items:center;gap:10px;max-width:360px}
+.quantity-control input{flex:1;min-width:0;text-align:center;font-variant-numeric:tabular-nums}
+.quantity-control .quantity-step{width:48px;min-width:48px;height:46px;padding:0;font-size:22px;line-height:1;display:grid;place-items:center}
+.quantity-summary{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#667568;background:#edf1e8;border:1px solid #dfe6d9;border-radius:999px;padding:4px 9px;margin-top:6px}
 .location-row-main{display:flex;align-items:center;gap:9px;min-width:0}
 .drag-handle{font-size:18px;line-height:1;opacity:.55;letter-spacing:-2px;cursor:grab;user-select:none}
 .location-manage-row[draggable="true"]{cursor:grab}
@@ -198,6 +202,9 @@ html.settings-open,body.settings-open{overflow:hidden!important}
   <div class="subtle">配置は「部屋 → 収納 → 棚・引き出し」の順に選択できます。タグはタップで複数選択でき、「＋ タグを追加」から新しいタグも登録できます。</div>
   <form id="itemForm" class="form">
     <label>品名 *</label><input id="itemName" required placeholder="例：ドライバーセット">
+    <label for="itemQuantity">数量（任意）</label>
+    <div class="quantity-control"><button type="button" class="btn secondary quantity-step" aria-label="数量を減らす" onclick="adjustQuantity('itemQuantity',-1)">−</button><input id="itemQuantity" type="number" inputmode="numeric" min="1" max="999" step="1" placeholder="未入力" aria-label="数量" onchange="normalizeQuantityInput('itemQuantity')"><button type="button" class="btn secondary quantity-step" aria-label="数量を増やす" onclick="adjustQuantity('itemQuantity',1)">＋</button></div>
+    <div class="small">1〜999。数量を設定しない場合は空欄のままにできます。</div>
     <label>配置 *</label>
     <div id="locationLevels" class="location-levels"></div>
     <label>タグ</label><div id="addTagChips" class="chips"></div><input id="itemTags" type="hidden">
@@ -448,9 +455,48 @@ function showScreen(id){
  if(id==='addScreen')renderAddForm(false);
 }
 
+function validQuantity(value){
+ if(value===null||value===undefined||String(value).trim()==='')return null;
+ const n=Number(value);
+ return Number.isInteger(n)&&n>=1&&n<=999?n:null;
+}
+function quantityMarkup(value){
+ const n=validQuantity(value);
+ return n===null?'':`<div class="quantity-summary" aria-label="数量 ${n}">数量：${n}</div>`;
+}
+function normalizeQuantityInput(id){
+ const input=document.getElementById(id);if(!input)return;
+ if(input.value.trim()==='')return;
+ const n=Number(input.value);
+ if(!Number.isFinite(n)){input.value='';return}
+ input.value=String(Math.max(1,Math.min(999,Math.floor(n))));
+}
+function adjustQuantity(id,delta){
+ const input=document.getElementById(id);if(!input)return;
+ if(input.value.trim()===''){
+  if(delta>0)input.value='1';
+  input.dispatchEvent(new Event('input',{bubbles:true}));
+  return;
+ }
+ const n=Number(input.value);
+ if(!Number.isFinite(n)){input.value=delta>0?'1':'';return}
+ input.value=String(Math.max(1,Math.min(999,Math.floor(n)+delta)));
+ input.dispatchEvent(new Event('input',{bubbles:true}));
+}
+function readOptionalQuantity(id){
+ const input=document.getElementById(id);if(!input)return null;
+ if(input.value.trim()==='')return null;
+ const n=Number(input.value);
+ if(!Number.isFinite(n))return null;
+ return Math.max(1,Math.min(999,Math.floor(n)));
+}
+function quantityProperty(inputId){
+ const quantity=readOptionalQuantity(inputId);
+ return quantity===null?{}:{quantity};
+}
 function itemCard(i){
  const photo=photoSrc(i.photo)?`<img class="thumb" src="${photoSrc(i.photo)}">`:`<div class="thumb empty">📦</div>`;
- return `<div class="card item-card" onclick="showDetail('${i.id}')">${photo}<div class="item-info"><div class="item-name">${esc(i.name)}</div><div class="location">📍 ${esc(path(i.location))}</div><div class="tags">${(i.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div><div class="manage-actions search-item-actions"><button class="btn secondary" type="button" onclick="event.stopPropagation();editItem('${i.id}')">編集</button><button class="btn secondary" type="button" onclick="event.stopPropagation();deleteItem('${i.id}')">削除</button></div></div></div>`;
+ return `<div class="card item-card" onclick="showDetail('${i.id}')">${photo}<div class="item-info"><div class="item-name">${esc(i.name)}</div><div class="location">📍 ${esc(path(i.location))}</div>${quantityMarkup(i.quantity)}<div class="tags">${(i.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div><div class="manage-actions search-item-actions"><button class="btn secondary" type="button" onclick="event.stopPropagation();editItem('${i.id}')">編集</button><button class="btn secondary" type="button" onclick="event.stopPropagation();deleteItem('${i.id}')">削除</button></div></div></div>`;
 }
 function renderSearch(){
  const q=document.getElementById('searchInput').value.trim().toLowerCase();
@@ -1209,7 +1255,7 @@ document.getElementById('itemForm').addEventListener('submit',e=>{
  if(!name){openAppMessage('品名を入力してください。','品名を入力してから登録してください。');return}
  if(!location){openAppMessage('配置を選択してください。','部屋または配置を選択してから登録してください。');return}
  const p=document.getElementById('photoPreview');
- data.items.push({id:crypto.randomUUID(),name,location,tags:selectedAddTags(),memo:document.getElementById('itemMemo').value.trim(),photo:p.dataset.value||''});
+ data.items.push({id:crypto.randomUUID(),name,location,tags:selectedAddTags(),memo:document.getElementById('itemMemo').value.trim(),photo:p.dataset.value||'',...quantityProperty('itemQuantity')});
  save();resetItemForm();showScreen('searchScreen');showToast('登録しました。');
 });
 function resetItemForm(){
@@ -1233,7 +1279,8 @@ function registerAndContinueSameLocation(){
   location,
   tags:selectedAddTags(),
   memo:document.getElementById('itemMemo').value.trim(),
-  photo:p.dataset.value||''
+  photo:p.dataset.value||'',
+  ...quantityProperty('itemQuantity')
  });
  save();
 
@@ -1254,12 +1301,12 @@ function registerAndContinueSameLocation(){
 
 function showDetail(id){
  const i=data.items.find(x=>x.id===id);if(!i)return;
- document.getElementById('detailScreen').innerHTML=`<button class="back" onclick="showScreen('searchScreen')">← 検索に戻る</button>${photoSrc(i.photo)?`<img class="detail-photo" src="${photoSrc(i.photo)}">`:''}<div class="detail-title">${esc(i.name)}</div><div class="location">📍 ${esc(path(i.location))}</div><div class="tags">${(i.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>${i.memo?`<div class="card">${esc(i.memo)}</div>`:''}<div class="actions"><button class="btn" onclick="editItem('${i.id}')">編集</button><button class="btn secondary" onclick="deleteItem('${i.id}')">削除</button></div>`;
+ document.getElementById('detailScreen').innerHTML=`<button class="back" onclick="showScreen('searchScreen')">← 検索に戻る</button>${photoSrc(i.photo)?`<img class="detail-photo" src="${photoSrc(i.photo)}">`:''}<div class="detail-title">${esc(i.name)}</div><div class="location">📍 ${esc(path(i.location))}</div>${quantityMarkup(i.quantity)}<div class="tags">${(i.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>${i.memo?`<div class="card">${esc(i.memo)}</div>`:''}<div class="actions"><button class="btn" onclick="editItem('${i.id}')">編集</button><button class="btn secondary" onclick="deleteItem('${i.id}')">削除</button></div>`;
  showScreen('detailScreen');
 }
 function editItem(id){
  const i=data.items.find(x=>x.id===id);if(!i)return;
- document.getElementById('detailScreen').innerHTML=`<button class="back" onclick="showScreen('searchScreen')">← 検索に戻る</button><div class="section-title">物を編集</div><div class="editor form"><label>品名 *</label><input id="editName" value="${escAttr(i.name)}"><label>配置</label><div id="editLocationArea"></div><label>タグ</label><div id="editTagChips" class="chips"></div><input id="editTags" type="hidden" value="${escAttr((i.tags||[]).join('|'))}"><label>メモ</label><textarea id="editMemo">${esc(i.memo||'')}</textarea><label>写真</label><div class="actions photo-source-actions"><button class="btn secondary" type="button" onclick="openPhotoPicker('editPhoto','camera')">カメラで撮影</button><button class="btn secondary" type="button" onclick="openPhotoPicker('editPhoto','device')">端末から選ぶ</button></div><input id="editPhoto" type="file" accept="image/*" class="hidden"><img id="editPhotoPreview" class="photo-preview ${photoSrc(i.photo)?'':'hidden'}" ${photoSrc(i.photo)?`src="${photoSrc(i.photo)}"`:''} data-ref="${escAttr(i.photo||'')}"><div class="actions"><button class="btn" onclick="saveItemEdit('${i.id}')">保存</button><button class="btn secondary" onclick="showScreen('searchScreen')">キャンセル</button></div></div>`;
+ document.getElementById('detailScreen').innerHTML=`<button class="back" onclick="showScreen('searchScreen')">← 検索に戻る</button><div class="section-title">物を編集</div><div class="editor form"><label>品名 *</label><input id="editName" value="${escAttr(i.name)}"><label for="editQuantity">数量（任意）</label><div class="quantity-control"><button type="button" class="btn secondary quantity-step" aria-label="数量を減らす" onclick="adjustQuantity('editQuantity',-1)">−</button><input id="editQuantity" type="number" inputmode="numeric" min="1" max="999" step="1" placeholder="未入力" value="${validQuantity(i.quantity)??''}" aria-label="数量" onchange="normalizeQuantityInput('editQuantity')"><button type="button" class="btn secondary quantity-step" aria-label="数量を増やす" onclick="adjustQuantity('editQuantity',1)">＋</button></div><div class="small">1〜999。数量を設定しない場合は空欄にできます。</div><label>配置</label><div id="editLocationArea"></div><label>タグ</label><div id="editTagChips" class="chips"></div><input id="editTags" type="hidden" value="${escAttr((i.tags||[]).join('|'))}"><label>メモ</label><textarea id="editMemo">${esc(i.memo||'')}</textarea><label>写真</label><div class="actions photo-source-actions"><button class="btn secondary" type="button" onclick="openPhotoPicker('editPhoto','camera')">カメラで撮影</button><button class="btn secondary" type="button" onclick="openPhotoPicker('editPhoto','device')">端末から選ぶ</button></div><input id="editPhoto" type="file" accept="image/*" class="hidden"><img id="editPhotoPreview" class="photo-preview ${photoSrc(i.photo)?'':'hidden'}" ${photoSrc(i.photo)?`src="${photoSrc(i.photo)}"`:''} data-ref="${escAttr(i.photo||'')}"><div class="actions"><button class="btn" onclick="saveItemEdit('${i.id}')">保存</button><button class="btn secondary" onclick="showScreen('searchScreen')">キャンセル</button></div></div>`;
  renderEditLocation(i.location);renderEditTags();
  document.getElementById('editPhoto').onchange=async e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
  r.onload=async()=>{try{
@@ -1302,7 +1349,7 @@ function toggleEditTag(t){let a=(document.getElementById('editTags').value||'').
 function saveItemEdit(id){
  const i=data.items.find(x=>x.id===id),name=document.getElementById('editName').value.trim(),location=editPath.at(-1)||null;
  if(!name){openAppMessage('入力を確認してください。','品名を入力してください。');return}
- i.name=name;i.location=location;i.tags=document.getElementById('editTags').value.split('|').filter(Boolean);i.memo=document.getElementById('editMemo').value.trim();
+ i.name=name;i.location=location;i.tags=document.getElementById('editTags').value.split('|').filter(Boolean);i.memo=document.getElementById('editMemo').value.trim();const quantity=readOptionalQuantity('editQuantity');if(quantity===null)delete i.quantity;else i.quantity=quantity;
  const preview=document.getElementById('editPhotoPreview');
  if(preview.dataset.value)i.photo=preview.dataset.value;
  else if(preview.dataset.ref)i.photo=preview.dataset.ref;
