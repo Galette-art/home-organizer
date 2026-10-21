@@ -156,6 +156,11 @@ html.settings-open,body.settings-open{overflow:hidden!important}
 .location-swipe-row .location-admin-row{border:0;margin:0}
 .unassigned-row{border:1px solid #e4ddcf;border-radius:16px;background:#f5f1e8;margin:0 0 12px;padding:0 10px}
 .unassigned-count{font-size:12px;color:var(--muted);white-space:nowrap}
+/* Keep saved item notes readable directly from list cards. */
+.item-memo-preview{display:flex;align-items:flex-start;gap:6px;margin-top:8px;color:#68766b;font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
+.item-memo-label{flex:none;color:#526b59;font-size:11px;font-weight:700;letter-spacing:.04em}
+.item-memo-text{min-width:0}
+
 /* Item-row swipe actions: mirror location rows by sliding the card left to reveal the actions underneath. */
 .item-swipe-row{position:relative;overflow:hidden;border-radius:20px;margin:9px 0;touch-action:pan-y;isolation:isolate}
 .item-swipe-actions{position:absolute;inset:0 0 0 auto;width:132px;display:flex;align-items:stretch;z-index:3;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .12s ease;overflow:hidden;border-radius:0 20px 20px 0}
@@ -521,6 +526,7 @@ function itemCard(i){
      <div class="location">📍 ${esc(path(i.location))}</div>
      ${quantityMarkup(i.quantity)}
      <div class="tags">${(i.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>
+     ${i.memo&&i.memo.trim()?`<div class="item-memo-preview"><span class="item-memo-label">メモ</span><span class="item-memo-text">${esc(i.memo)}</span></div>`:''}
     </div>
    </div>
   </div>
