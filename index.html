@@ -156,18 +156,16 @@ html.settings-open,body.settings-open{overflow:hidden!important}
 .location-swipe-row .location-admin-row{border:0;margin:0}
 .unassigned-row{border:1px solid #e4ddcf;border-radius:16px;background:#f5f1e8;margin:0 0 12px;padding:0 10px}
 .unassigned-count{font-size:12px;color:var(--muted);white-space:nowrap}
-/* Item-row swipe actions: use the same 180ms ease as location rows, without reflowing the photo or name. */
+/* Item-row swipe actions: mirror location rows by sliding the card left to reveal the actions underneath. */
 .item-swipe-row{position:relative;overflow:hidden;border-radius:20px;margin:9px 0;touch-action:pan-y;isolation:isolate}
-.item-swipe-actions{position:absolute;inset:0 0 0 auto;width:116px;display:flex;align-items:stretch;z-index:3;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .18s ease;overflow:hidden;border-radius:0 20px 20px 0}
+.item-swipe-actions{position:absolute;inset:0 0 0 auto;width:132px;display:flex;align-items:stretch;z-index:3;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .12s ease;overflow:hidden;border-radius:0 20px 20px 0}
 .item-swipe-row.open .item-swipe-actions{visibility:visible;opacity:1;pointer-events:auto}
-.item-swipe-actions button{border:0;color:#fff;font:inherit;font-size:13px;font-weight:600;min-width:58px;width:58px;padding:0 6px;touch-action:manipulation;cursor:pointer}
+.item-swipe-actions button{border:0;color:#fff;font:inherit;font-size:13px;font-weight:600;min-width:66px;width:66px;padding:0 12px;touch-action:manipulation;cursor:pointer}
 .item-swipe-edit{background:#526b59}.item-swipe-delete{background:#b94d42}
-.item-swipe-content{position:relative;z-index:2;width:100%;min-width:0;clip-path:inset(0 0 0 0 round 20px);transition:clip-path .18s ease}
+.item-swipe-content{position:relative;z-index:2;width:100%;min-width:0;transition:transform .18s ease}
 .item-swipe-content .item-card{margin:0;min-width:0;height:100%;cursor:pointer}
-.item-swipe-row.open .item-swipe-content{clip-path:inset(0 116px 0 0 round 20px 0 0 20px)}
+.item-swipe-row.open .item-swipe-content{transform:translateX(-132px)}
 .item-swipe-content .item-info{flex:1;min-width:0;overflow-wrap:anywhere}
-.item-swipe-row.open .item-name,.item-swipe-row.open .location{overflow-wrap:anywhere}
-.item-swipe-row.open .item-swipe-content .item-name{line-height:1.4;word-break:normal}
 
 </style>
 </head>
