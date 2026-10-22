@@ -172,6 +172,12 @@ html.settings-open,body.settings-open{overflow:hidden!important}
 .item-swipe-row.open .item-swipe-content{transform:translateX(-132px)}
 .item-swipe-content .item-info{flex:1;min-width:0;overflow-wrap:anywhere}
 
+
+/* Keep item-list tags on one line; show at most two and summarize the rest. */
+.item-card .tags{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;margin-top:8px;min-width:0;max-width:100%;height:28px;overflow:hidden;white-space:nowrap}
+.item-card .tags .tag{display:block;flex:0 1 auto;min-width:0;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item-card .tags .tag-more{flex:0 0 auto;max-width:76px;padding-left:8px;padding-right:8px;font-size:11px;white-space:nowrap}
+
 </style>
 </head>
 <body>
@@ -512,6 +518,11 @@ function quantityProperty(inputId){
 }
 function itemCard(i){
  const id=escAttr(i.id);
+ const tags=Array.isArray(i.tags)?i.tags.filter(t=>typeof t==="string"&&t.trim()):[];
+ const visibleTagLimit=2;
+ const visibleTags=tags.slice(0,visibleTagLimit).map(t=>`<span class="tag">${esc(t)}</span>`).join("");
+ const remainingTagCount=Math.max(0,tags.length-visibleTagLimit);
+ const moreTags=remainingTagCount?`<span class="tag tag-more">その他${remainingTagCount}件</span>`:"";
  const photo=photoSrc(i.photo)?`<img class="thumb" src="${escAttr(photoSrc(i.photo))}" alt="${escAttr(i.name)}の写真">`:`<div class="thumb empty" aria-hidden="true">📦</div>`;
  return `<div class="item-swipe-row" data-item-swipe="${id}">
   <div class="item-swipe-actions" aria-label="${escAttr(i.name)}の操作">
@@ -525,7 +536,7 @@ function itemCard(i){
      <div class="item-name">${esc(i.name)}</div>
      <div class="location">📍 ${esc(path(i.location))}</div>
      ${quantityMarkup(i.quantity)}
-     <div class="tags">${(i.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>
+     <div class="tags">${visibleTags}${moreTags}</div>
      ${i.memo&&i.memo.trim()?`<div class="item-memo-preview"><span class="item-memo-label">メモ</span><span class="item-memo-text">${esc(i.memo)}</span></div>`:''}
     </div>
    </div>
