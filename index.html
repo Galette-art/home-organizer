@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- BUILD: 2026-10-21-search-item-swipe-v1 -->
+<!-- BUILD: 2026-10-22-star-rain-v1 -->
 <title>自宅の整理整頓</title>
 <style>
 :root{--bg:#f6f6f3;--card:#fff;--text:#222;--muted:#777;--line:#e5e5e0}
@@ -178,6 +178,11 @@ html.settings-open,body.settings-open{overflow:hidden!important}
 .item-card .tags .tag{display:block;flex:0 1 auto;min-width:0;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item-card .tags .tag-more{flex:0 0 auto;max-width:76px;padding-left:8px;padding-right:8px;font-size:11px;white-space:nowrap}
 
+/* Rare, lightweight star-rain celebration after a successful item registration. */
+.star-rain{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:10001;contain:strict}
+.star-rain-particle{position:absolute;top:-36px;display:block;line-height:1;will-change:transform,opacity;text-shadow:0 2px 8px rgba(198,164,91,.22);animation:star-rain-fall var(--star-duration,1.8s) cubic-bezier(.25,.55,.45,.95) var(--star-delay,0s) both}
+@keyframes star-rain-fall{0%{transform:translate3d(0,-4vh,0) rotate(0deg) scale(.65);opacity:0}12%{opacity:1}82%{opacity:.9}100%{transform:translate3d(var(--star-drift,0px),110vh,0) rotate(var(--star-spin,360deg)) scale(1);opacity:0}}
+
 </style>
 </head>
 <body>
@@ -297,6 +302,32 @@ function showToast(message){
  t.classList.add('show');
  clearTimeout(toastTimer);
  toastTimer=setTimeout(()=>t.classList.remove('show'),1800);
+}
+
+// Show a brief decorative star shower on roughly one in ten successful registrations.
+function maybeShowStarRain(){
+ if(Math.random()>=0.1)return;
+ if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ const rain=document.createElement('div');
+ rain.className='star-rain';
+ rain.setAttribute('aria-hidden','true');
+ const symbols=['✦','★','✧','⋆'];
+ const colors=['#c6a45b','#d7b56b','#879b82','#bd795b'];
+ for(let i=0;i<26;i++){
+  const star=document.createElement('span');
+  star.className='star-rain-particle';
+  star.textContent=symbols[Math.floor(Math.random()*symbols.length)];
+  star.style.left=(3+Math.random()*94)+'%';
+  star.style.fontSize=(12+Math.random()*15)+'px';
+  star.style.color=colors[Math.floor(Math.random()*colors.length)];
+  star.style.setProperty('--star-duration',(1.45+Math.random()*.8)+'s');
+  star.style.setProperty('--star-delay',(Math.random()*.22)+'s');
+  star.style.setProperty('--star-drift',Math.round((Math.random()-.5)*140)+'px');
+  star.style.setProperty('--star-spin',Math.round((Math.random()-.5)*540)+'deg');
+  rain.appendChild(star);
+ }
+ document.body.appendChild(rain);
+ window.setTimeout(()=>rain.remove(),2800);
 }
 const PHOTO_DB='homeOrganizerPhotos';
 const PHOTO_STORE='photos';
@@ -1407,7 +1438,7 @@ document.getElementById('itemForm').addEventListener('submit',e=>{
  if(!location){openAppMessage('配置を選択してください。','部屋または配置を選択してから登録してください。');return}
  const p=document.getElementById('photoPreview');
  data.items.push({id:crypto.randomUUID(),name,location,tags:selectedAddTags(),memo:document.getElementById('itemMemo').value.trim(),photo:p.dataset.value||'',...quantityProperty('itemQuantity')});
- save();resetItemForm();showScreen('searchScreen');showToast('登録しました。');
+ save();resetItemForm();showScreen('searchScreen');showToast('登録しました。');maybeShowStarRain();
 });
 function resetItemForm(){
  document.getElementById('itemForm').reset();document.getElementById('itemTags').value='';
@@ -1444,6 +1475,7 @@ function registerAndContinueSameLocation(){
  addPath=keptLocationPath;
  renderAddForm(false);
  showToast('登録しました。同じ場所に続けて登録できます。');
+ maybeShowStarRain();
 
  const input=document.getElementById('itemName');
  if(input)requestAnimationFrame(()=>{try{input.focus({preventScroll:true})}catch(e){input.focus()}});
