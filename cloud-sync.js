@@ -48,7 +48,7 @@
       ['code', 'state', 'error', 'error_code', 'error_description', '_app_refresh']
         .forEach((key) => freshUrl.searchParams.delete(key));
       freshUrl.hash = '';
-      freshUrl.searchParams.set('_app_refresh', APP_BUILD);
+      freshUrl.searchParams.set('_app_refresh', APP_BUILD + '-' + Date.now());
       if (freshUrl.href !== window.location.href) {
         window.location.replace(freshUrl.href);
         return;
