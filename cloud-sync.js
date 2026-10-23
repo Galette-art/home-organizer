@@ -2,6 +2,7 @@
   const config = window.HOME_ORGANIZER_SUPABASE || {};
   const configured = /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(config.url || '') &&
     !!config.anonKey && !String(config.anonKey).includes('YOUR_');
+  const APP_BUILD = '2026-10-24-auth-session-and-latest-ui-v1';
   let client = null, user = null, busy = false, suppress = false, timer = null;
   const status = (message) => {
     const el = document.getElementById('cloudSyncStatus');
@@ -18,15 +19,42 @@
     if (restore) restore.classList.toggle('hidden', !user);
   };
   async function init(){
+    // Capture OAuth callback markers before Supabase cleans them from the URL.
+    const oauthReturnUrl = new URL(window.location.href);
+    const isOAuthCallback = oauthReturnUrl.searchParams.has('code') ||
+      /(?:^|[&#])(?:access_token|refresh_token)=/.test(oauthReturnUrl.hash);
+
     if (!configured || !window.supabase || !window.supabase.createClient) {
       status('クラウド同期は未設定です。Supabaseプロジェクトの設定が必要です。端末内の保存とJSONバックアップは引き続き利用できます。');
       authButtons(); return;
     }
     client = window.supabase.createClient(config.url, config.anonKey, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+      auth: {
+        persistSession: true,
+        storage: window.localStorage,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
     });
-    const { data: sessionData } = await client.auth.getSession();
+    const { data: sessionData, error: sessionError } = await client.auth.getSession();
+    if (sessionError) console.warn('Could not restore the saved Google session', sessionError);
     user = sessionData && sessionData.session ? sessionData.session.user : null;
+
+    // OAuth may return to a cached copy of the app. After Supabase has saved
+    // the session, reopen the same page with a build marker so the newest UI
+    // (including swipe and quantity controls) is loaded. This does not change data.
+    if (isOAuthCallback && user) {
+      const freshUrl = new URL(oauthReturnUrl.href);
+      ['code', 'state', 'error', 'error_code', 'error_description', '_app_refresh']
+        .forEach((key) => freshUrl.searchParams.delete(key));
+      freshUrl.hash = '';
+      freshUrl.searchParams.set('_app_refresh', APP_BUILD);
+      if (freshUrl.href !== window.location.href) {
+        window.location.replace(freshUrl.href);
+        return;
+      }
+    }
+
     authButtons();
     status(user ? 'Googleアカウントに接続済みです。同期状態を確認しています。' : '未ログインです。端末内データはこの端末に保存されています。');
     client.auth.onAuthStateChange((event, session) => {
@@ -39,9 +67,15 @@
   }
   async function login(){
     if (!client) { status('クラウド設定が未完了です。'); return; }
+    // Do not carry the one-time cache-refresh marker into Supabase's
+    // redirect URL; keep the callback at the canonical GitHub Pages address.
+    const redirectUrl = new URL(window.location.href);
+    ['code', 'state', 'error', 'error_code', 'error_description', '_app_refresh']
+      .forEach((key) => redirectUrl.searchParams.delete(key));
+    redirectUrl.hash = '';
     const { error } = await client.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: location.href.split('#')[0] }
+      options: { redirectTo: redirectUrl.toString() }
     });
     if (error) { console.error(error); status('Googleログインを開始できませんでした。Supabaseの認証設定を確認してください。'); }
   }
