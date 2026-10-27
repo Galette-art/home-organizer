@@ -2,7 +2,7 @@
   const config = window.HOME_ORGANIZER_SUPABASE || {};
   const configured = /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(config.url || '') &&
     !!config.anonKey && !String(config.anonKey).includes('YOUR_');
-  const APP_BUILD = '2026-10-24-auth-session-and-latest-ui-v1';
+  const APP_BUILD = '2026-10-27-defect-fixes-v1';
   let client = null, user = null, busy = false, suppress = false, timer = null;
   const status = (message) => {
     const el = document.getElementById('cloudSyncStatus');
@@ -18,6 +18,37 @@
     if (sync) sync.classList.toggle('hidden', !user);
     if (restore) restore.classList.toggle('hidden', !user);
   };
+  // --- Sync bookkeeping helpers -------------------------------------------
+  // stringHash fingerprints a snapshot (or a photo data URL) so the sync can
+  // tell "unchanged" apart from "changed" without keeping a second copy.
+  function stringHash(value){
+    const s = String(value ?? '');
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return 'h' + h.toString(16) + '-' + s.length;
+  }
+  function snapshotHash(snapshot){ return stringHash(JSON.stringify(snapshot || null)); }
+  function localDateString(){
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+  function syncStateKey(){ return user ? 'homeOrganizerCloudSyncState:' + user.id : ''; }
+  function getSyncMarker(){
+    try { const raw = localStorage.getItem(syncStateKey()); return raw ? JSON.parse(raw) : null; }
+    catch (e) { return null; }
+  }
+  function setSyncMarker(marker){
+    try { localStorage.setItem(syncStateKey(), JSON.stringify(marker)); } catch (e) {}
+  }
+  function uploadedKey(){ return user ? 'homeOrganizerUploadedPhotos:' + user.id : ''; }
+  function getUploadedMap(){
+    try { return JSON.parse(localStorage.getItem(uploadedKey()) || '{}') || {}; }
+    catch (e) { return {}; }
+  }
+  function setUploadedMap(map){
+    try { localStorage.setItem(uploadedKey(), JSON.stringify(map)); } catch (e) {}
+  }
   async function init(){
     // Capture OAuth callback markers before Supabase cleans them from the URL.
     const oauthReturnUrl = new URL(window.location.href);
@@ -79,7 +110,7 @@
     });
     if (error) { console.error(error); status('Googleログインを開始できませんでした。Supabaseの認証設定を確認してください。'); }
   }
-  
+
   async function logout(){
     if (!client) return;
     const key = initializedKey();
@@ -98,25 +129,61 @@
   }
   async function uploadPhotos(snapshot){
     const refs = [...new Set(await getPhotoRefs(snapshot))];
+    // Skip photos whose content this device has already uploaded unchanged;
+    // re-uploading every photo on every edit wasted bandwidth and made each
+    // sync slower as the library grew.
+    const uploaded = getUploadedMap();
+    let uploadedChanged = false;
     for (const ref of refs) {
       const value = await getPhoto(ref);
       if (!value || !String(value).startsWith('data:')) throw new Error('端末内の写真が見つかりません: ' + ref);
+      const hash = stringHash(value);
+      if (uploaded[ref] === hash) continue;
       const response = await fetch(value);
       const blob = await response.blob();
       const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : blob.type === 'image/gif' ? 'gif' : 'jpg';
       const path = user.id + '/' + encodeURIComponent(ref) + '.' + ext;
       const { error } = await client.storage.from('home-organizer-photos').upload(path, blob, { upsert: true, contentType: blob.type || 'image/jpeg' });
       if (error) throw error;
+      uploaded[ref] = hash; uploadedChanged = true;
     }
+    if (uploadedChanged) setUploadedMap(uploaded);
   }
-  async function saveSnapshot(snapshot, createDailyBackup){
-    await uploadPhotos(snapshot);
-    const { error } = await client.from('home_organizer_data').upsert({ user_id: user.id, data: snapshot, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+  async function writeBackupOnly(snapshot){
+    const { error } = await client.from('home_organizer_backups').upsert(
+      { user_id: user.id, backup_date: localDateString(), data: snapshot },
+      { onConflict: 'user_id,backup_date' });
     if (error) throw error;
+  }
+  async function saveSnapshot(snapshot, createDailyBackup, options){
+    if (!snapshot) throw new Error('端末内データを取得できませんでした');
+    const opts = options || {};
+    // Conflict guard: if the cloud row changed since this device last synced
+    // and its content differs from the local data, uploading would silently
+    // destroy the other device's changes. Refuse and let the caller ask the
+    // user which side to keep (see syncNow / checkRemoteFreshness).
+    if (!opts.skipConflictCheck) {
+      const remote = await fetchRemote();
+      if (remote) {
+        const marker = getSyncMarker();
+        const localHash = snapshotHash(snapshot);
+        const remoteHash = snapshotHash(remote.data);
+        const remoteChanged = !marker || remote.updated_at !== marker.updatedAt;
+        if (remoteChanged && localHash !== remoteHash) {
+          const err = new Error('クラウド側に新しいデータがあるため、上書きしませんでした');
+          err.code = 'SYNC_CONFLICT'; err.remote = remote;
+          throw err;
+        }
+      }
+    }
+    await uploadPhotos(snapshot);
+    const updatedAt = new Date().toISOString();
+    const { error } = await client.from('home_organizer_data').upsert({ user_id: user.id, data: snapshot, updated_at: updatedAt }, { onConflict: 'user_id' });
+    if (error) throw error;
+    setSyncMarker({ updatedAt, hash: snapshotHash(snapshot) });
     if (createDailyBackup) {
-      const today = new Date().toISOString().slice(0,10);
-      const { error: backupError } = await client.from('home_organizer_backups').upsert({ user_id: user.id, backup_date: today, data: snapshot }, { onConflict: 'user_id,backup_date' });
-      if (backupError) console.warn('Daily backup could not be written', backupError);
+      try { await writeBackupOnly(snapshot); }
+      catch (backupError) { console.warn('Daily backup could not be written', backupError); }
     }
   }
   async function fetchRemote(){
@@ -149,6 +216,31 @@
     try { await window.HomeOrganizerSetData(restored); }
     finally { suppress = false; }
   }
+  // On an already-initialized device, check whether the cloud holds changes
+  // this device has never seen (e.g. edited on another device) and offer to
+  // import them instead of silently overwriting them on the next edit.
+  async function checkRemoteFreshness(){
+    try {
+      const remote = await fetchRemote();
+      const local = getLocalData();
+      if (!remote || !local) return;
+      const localHash = snapshotHash(local);
+      const remoteHash = snapshotHash(remote.data);
+      if (localHash === remoteHash) { setSyncMarker({ updatedAt: remote.updated_at, hash: localHash }); return; }
+      const marker = getSyncMarker();
+      if (marker && marker.updatedAt === remote.updated_at) return;
+      const takeRemote = confirm('クラウドに、この端末でまだ取り込んでいない新しいデータがあります（別の端末で更新された可能性があります）。\n\nOK：クラウドのデータをこの端末に取り込む（取り込み前に、この端末の現在のデータは本日分のクラウドバックアップに保存します）\nキャンセル：この端末のデータを優先する（次の同期でクラウドを上書きします）');
+      if (takeRemote) {
+        await writeBackupOnly(local);
+        await restoreRemote(remote.data);
+        setSyncMarker({ updatedAt: remote.updated_at, hash: remoteHash });
+        status('クラウドの新しいデータを取り込みました。自動同期が有効です。');
+      } else {
+        setSyncMarker({ updatedAt: remote.updated_at, hash: localHash });
+        status('この端末のデータを優先します。次の変更時にクラウドへ同期します。');
+      }
+    } catch (e) { console.warn('Remote freshness check failed', e); }
+  }
   function initializedKey(){ return user ? 'homeOrganizerCloudInitialized:' + user.id : ''; }
   async function onSignedIn(){
     if (!client || !user || busy) return;
@@ -156,6 +248,7 @@
     // Ask how to handle existing cloud data only during initial setup on this browser.
     if (key && localStorage.getItem(key) === '1') {
       status('Googleアカウントに接続済みです。自動同期が有効です。');
+      await checkRemoteFreshness();
       return;
     }
     busy = true; status('クラウドのデータを確認しています…');
@@ -174,11 +267,12 @@
           if (!local || !Array.isArray(local.locations) || !Array.isArray(local.items) || !Array.isArray(local.tags)) {
             throw new Error('端末内データを確認できないため、クラウドのデータは変更していません');
           }
-          await saveSnapshot(local, true);
+          await saveSnapshot(local, true, { skipConflictCheck: true });
           if (key) localStorage.setItem(key, '1');
           status('端末内のデータを保持し、クラウドにバックアップしました。');
         } else {
           if (key) localStorage.setItem(key, '1');
+          if (local) setSyncMarker({ updatedAt: remote.updated_at, hash: snapshotHash(local) });
           status('端末内のデータを保持しました。クラウドのデータは変更していません。必要な場合は「クラウドにバックアップ」を押してください。');
         }
       }
@@ -191,7 +285,26 @@
     if (!client || !user || busy) return;
     busy = true; status('同期中…');
     try { await saveSnapshot(getLocalData(), true); status('クラウドへのバックアップが完了しました。'); }
-    catch (e) { console.error(e); status('同期できませんでした。端末内データは保持されています。'); }
+    catch (e) {
+      if (e && e.code === 'SYNC_CONFLICT' && e.remote) {
+        // Ask which side to keep. Whichever side loses is first preserved in
+        // today's cloud backup so the choice can be undone via restore.
+        const local = getLocalData();
+        const overwrite = confirm('クラウドに、この端末で取り込んでいない新しいデータがあります。\n\nOK：この端末のデータでクラウドを上書きする（上書き前に、現在のクラウドデータは本日分のバックアップに保存します）\nキャンセル：クラウドのデータをこの端末に取り込む（取り込み前に、この端末の現在のデータは本日分のバックアップに保存します）');
+        try {
+          if (overwrite) {
+            await writeBackupOnly(e.remote.data);
+            await saveSnapshot(local, true, { skipConflictCheck: true });
+            status('端末内のデータでクラウドを更新しました。');
+          } else {
+            await writeBackupOnly(local);
+            await restoreRemote(e.remote.data);
+            setSyncMarker({ updatedAt: e.remote.updated_at, hash: snapshotHash(e.remote.data) });
+            status('クラウドのデータを取り込みました。');
+          }
+        } catch (e2) { console.error(e2); status('同期できませんでした。端末内データは保持されています。'); }
+      } else { console.error(e); status('同期できませんでした。端末内データは保持されています。'); }
+    }
     finally { busy = false; }
   }
   function schedule(snapshot){
@@ -201,7 +314,11 @@
       if (busy) { schedule(snapshot); return; }
       busy = true; status('変更をクラウドへ同期しています…');
       try { await saveSnapshot(snapshot, false); status('クラウドへ同期済みです。'); }
-      catch (e) { console.error('Automatic sync failed', e); status('自動同期に失敗しました。通信回復後に「クラウドにバックアップ」を押してください。'); }
+      catch (e) {
+        console.error('Automatic sync failed', e);
+        if (e && e.code === 'SYNC_CONFLICT') status('クラウドに新しいデータがあるため、自動同期を止めています。「クラウドにバックアップ」を押して、どちらのデータを残すか選んでください。');
+        else status('自動同期に失敗しました。通信回復後に「クラウドにバックアップ」を押してください。');
+      }
       finally { busy = false; }
     }, 900);
   }
