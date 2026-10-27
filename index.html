@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f6f6f3">
 <link rel="icon" type="image/jpeg" sizes="512x512" href="icons/galette-app-icon-512.jpg?v=20261023-3">
-<link rel="manifest" href="manifest.json?v=20261024-auth-session-and-latest-ui-v1">
+<link rel="manifest" href="manifest.json?v=20261027-defect-fixes-v1">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/galette-apple-touch-icon-180.png?v=20261023-1">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -259,12 +259,12 @@ html.settings-open,body.settings-open{overflow:hidden!important}
 
 
 <div id="appToast" role="status" aria-live="polite"></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="./supabase-config.js?v=20261024-auth-session-and-latest-ui-v1"></script>
-<script src="./cloud-sync.js?v=20261024-auth-session-and-latest-ui-v1"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
+<script src="./supabase-config.js?v=20261027-defect-fixes-v1"></script>
+<script src="./cloud-sync.js?v=20261027-defect-fixes-v1"></script>
 <script>
 const KEY='homeOrganizerPhase1';
-let data=JSON.parse(localStorage.getItem(KEY)||'null')||{
+const DEFAULT_DATA={
  locations:[
   {id:'living',name:'リビング',parent:null,type:'room',photo:''},
   {id:'tv',name:'テレビ台',parent:'living',type:'storage',photo:''},
@@ -283,6 +283,36 @@ let data=JSON.parse(localStorage.getItem(KEY)||'null')||{
   {id:'sample2',name:'単4電池',location:'tv-left',tags:['電池','消耗品'],memo:'予備',photo:''}
  ]
 };
+// Validate the stored shape before trusting it. A partially written or
+// corrupted localStorage value used to throw during startup and leave a blank
+// page whose only fix was wiping the site's data. Now the raw value is
+// quarantined under a separate key and the app starts with the default data.
+function sanitizeStoredData(raw){
+ if(!raw||typeof raw!=='object'||Array.isArray(raw))return null;
+ if(!Array.isArray(raw.locations)||!Array.isArray(raw.items)||!Array.isArray(raw.tags))return null;
+ const locations=raw.locations.filter(x=>x&&typeof x.id==='string'&&typeof x.name==='string')
+  .map(x=>({...x,parent:typeof x.parent==='string'?x.parent:null,type:typeof x.type==='string'?x.type:'storage',photo:typeof x.photo==='string'?x.photo:''}));
+ const items=raw.items.filter(x=>x&&typeof x.id==='string'&&typeof x.name==='string')
+  .map(x=>({...x,location:typeof x.location==='string'?x.location:null,tags:Array.isArray(x.tags)?x.tags.filter(t=>typeof t==='string'):[],memo:typeof x.memo==='string'?x.memo:'',photo:typeof x.photo==='string'?x.photo:''}));
+ const tags=raw.tags.filter(t=>typeof t==='string');
+ return {locations,items,tags};
+}
+let dataRecovered=false;
+let data;
+try{
+ const stored=localStorage.getItem(KEY);
+ const parsed=stored?JSON.parse(stored):null;
+ const clean=parsed?sanitizeStoredData(parsed):null;
+ if(parsed&&!clean){
+  dataRecovered=true;
+  try{localStorage.setItem(KEY+'.corrupt-'+Date.now(),stored)}catch(e){}
+ }
+ data=clean||JSON.parse(JSON.stringify(DEFAULT_DATA));
+}catch(e){
+ dataRecovered=true;
+ try{const stored=localStorage.getItem(KEY);if(stored)localStorage.setItem(KEY+'.corrupt-'+Date.now(),stored)}catch(e2){}
+ data=JSON.parse(JSON.stringify(DEFAULT_DATA));
+}
 data.locations.forEach(x=>{if(!x.photo)x.photo='';});
 if(!Array.isArray(data.tags))data.tags=[];
 let currentPlace=null,selectedTag='',selectedRoom='';
@@ -353,6 +383,40 @@ async function putPhoto(dataUrl){
  photoCache.set(id,dataUrl);
  return id;
 }
+// Photos are downscaled before they are stored. Full-resolution phone photos
+// (often 3-8MB, sometimes over the 12MB cloud bucket limit) used to make the
+// whole sync fail, and bloated local storage and JSON backups.
+const PHOTO_MAX_EDGE=1600;
+const PHOTO_SMALL_ENOUGH_LENGTH=1400000;
+async function fileToPhotoDataUrl(file){
+ const raw=await new Promise((resolve,reject)=>{
+  const reader=new FileReader();
+  reader.onload=()=>resolve(reader.result);
+  reader.onerror=()=>reject(reader.error||new Error('FileReader failed'));
+  reader.readAsDataURL(file);
+ });
+ if(typeof raw!=='string'||!raw.startsWith('data:image/'))return raw;
+ try{
+  const img=await new Promise((resolve,reject)=>{
+   const image=new Image();
+   image.onload=()=>resolve(image);
+   image.onerror=()=>reject(new Error('Image decode failed'));
+   image.src=raw;
+  });
+  const scale=Math.min(1,PHOTO_MAX_EDGE/Math.max(img.naturalWidth||1,img.naturalHeight||1));
+  if(scale>=1&&raw.length<=PHOTO_SMALL_ENOUGH_LENGTH)return raw;
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round((img.naturalWidth||1)*scale));
+  canvas.height=Math.max(1,Math.round((img.naturalHeight||1)*scale));
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(img,0,0,canvas.width,canvas.height);
+  return canvas.toDataURL('image/jpeg',0.85);
+ }catch(e){
+  console.warn('Photo downscale failed; storing the original image',e);
+  return raw;
+ }
+}
 async function getPhoto(id){
  if(!id)return '';
  if(!String(id).startsWith('photo:'))return id; // backward compatibility
@@ -397,6 +461,7 @@ window.HomeOrganizerPutPhoto=async(id,dataUrl)=>{
 };
 window.HomeOrganizerSetData=async next=>{
  if(!next||!Array.isArray(next.locations)||!Array.isArray(next.items)||!Array.isArray(next.tags))throw new Error('クラウドデータの形式が正しくありません');
+ const graphError=validateDataGraph(next);if(graphError)throw new Error('クラウドデータの形式が正しくありません: '+graphError);
  data=JSON.parse(JSON.stringify(next));normalizeLocationOrder();localStorage.setItem(KEY,JSON.stringify(data));
  photoCache.clear();await loadAllPhotos();renderSearch();renderAddForm(false);renderPlaces();
 };
@@ -438,6 +503,8 @@ async function restoreBackupFile(file){
      !payload.photos||typeof payload.photos!=='object'||Array.isArray(payload.photos)){
    throw new Error('対応していないバックアップ形式です。');
   }
+  const graphError=validateDataGraph(payload.data);
+  if(graphError)throw new Error('バックアップの内容が正しくありません: '+graphError);
   const restored=JSON.parse(JSON.stringify(payload.data));
   const photos=payload.photos;
   for(const collection of [restored.items,restored.locations]){
@@ -482,7 +549,20 @@ async function restoreBackupFile(file){
 function loc(id){return data.locations.find(x=>x.id===id)}
 function children(id){return data.locations.filter(x=>x.parent===id).sort((a,b)=>(a.order||0)-(b.order||0))}
 function itemsAt(id){return data.items.filter(x=>x.location===id)}
-function path(id){let a=[],x=loc(id);while(x){a.unshift(x.name);x=loc(x.parent)}return a.join(' → ')}
+function path(id){let a=[],x=loc(id);const seen=new Set();while(x&&!seen.has(x.id)){seen.add(x.id);a.unshift(x.name);x=loc(x.parent)}return a.join(' → ')}
+function validateDataGraph(d){
+ const locIds=new Set();
+ for(const l of d.locations){if(locIds.has(l.id))return '場所のIDが重複しています（'+l.id+'）';locIds.add(l.id)}
+ const itemIds=new Set();
+ for(const i of d.items){if(itemIds.has(i.id))return '物のIDが重複しています（'+i.id+'）';itemIds.add(i.id)}
+ for(const l of d.locations){if(l.parent!=null&&!locIds.has(l.parent))return '存在しない親場所を参照しています（'+l.name+'）'}
+ for(const l of d.locations){
+  const seen=new Set([l.id]);let p=l.parent;
+  while(p!=null){if(seen.has(p))return '場所の親子関係が循環しています（'+l.name+'）';seen.add(p);const parent=d.locations.find(x=>x.id===p);p=parent?parent.parent:null}
+ }
+ for(const i of d.items){if(i.location!=null&&!locIds.has(i.location))return '存在しない場所を参照している物があります（'+i.name+'）'}
+ return '';
+}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function escAttr(s){return esc(s).replace(/`/g,'&#96;')}
 function icon(t){return t==='room'?'🏠':t==='storage'?'🗄️':t==='drawer'?'▣':'▤'}
@@ -1078,12 +1158,7 @@ async function saveLocationEditor(id){
   const file=fileInput?.files?.[0];
   let photoRef=p.photo||'';
   if(file){
-   const dataUrl=await new Promise((resolve,reject)=>{
-    const reader=new FileReader();
-    reader.onload=()=>resolve(reader.result);
-    reader.onerror=()=>reject(reader.error||new Error('FileReader failed'));
-    reader.readAsDataURL(file);
-   });
+   const dataUrl=await fileToPhotoDataUrl(file);
    photoRef=await putPhoto(dataUrl);
   }
   p.name=name;p.photo=photoRef;
@@ -1423,14 +1498,11 @@ function openPhotoPicker(inputId, source){
 document.getElementById('itemPhoto').addEventListener('change',async e=>{
  const f=e.target.files[0];if(!f)return;
  try{
-  const r=new FileReader();
-  r.onload=async()=>{try{
-   const ref=await putPhoto(r.result);
-   const p=document.getElementById('photoPreview');
-   p.src=r.result;p.classList.remove('hidden');p.dataset.value=ref;
-  }catch(err){console.error(err);openAppMessage('写真の保存に失敗しました。','写真の保存に失敗しました。もう一度お試しください。')}};
-  r.readAsDataURL(f);
- }catch(err){console.error(err);openAppMessage('写真の読み込みに失敗しました。','写真の読み込みに失敗しました。')}
+  const dataUrl=await fileToPhotoDataUrl(f);
+  const ref=await putPhoto(dataUrl);
+  const p=document.getElementById('photoPreview');
+  p.src=dataUrl;p.classList.remove('hidden');p.dataset.value=ref;
+ }catch(err){console.error(err);openAppMessage('写真の保存に失敗しました。','写真の保存に失敗しました。もう一度お試しください。')}
 });
 document.getElementById('itemForm').addEventListener('submit',e=>{
  e.preventDefault();setAddPathFromSelected();
@@ -1493,17 +1565,17 @@ function editItem(id){
  const i=data.items.find(x=>x.id===id);if(!i)return;
  document.getElementById('detailScreen').innerHTML=`<button class="back" onclick="showScreen('searchScreen')">← 検索に戻る</button><div class="section-title">物を編集</div><div class="editor form"><label>品名 *</label><input id="editName" value="${escAttr(i.name)}"><label for="editQuantity">数量（任意）</label><div class="quantity-control"><button type="button" class="btn secondary quantity-step" aria-label="数量を減らす" onclick="adjustQuantity('editQuantity',-1)">−</button><input id="editQuantity" type="number" inputmode="numeric" min="1" max="999" step="1" placeholder="未入力" value="${validQuantity(i.quantity)??''}" aria-label="数量" onchange="normalizeQuantityInput('editQuantity')"><button type="button" class="btn secondary quantity-step" aria-label="数量を増やす" onclick="adjustQuantity('editQuantity',1)">＋</button></div><div class="small">1〜999。数量を設定しない場合は空欄にできます。</div><label>配置</label><div id="editLocationArea"></div><label>タグ</label><div id="editTagChips" class="chips"></div><input id="editTags" type="hidden" value="${escAttr((i.tags||[]).join('|'))}"><label>メモ</label><textarea id="editMemo">${esc(i.memo||'')}</textarea><label>写真</label><div class="actions photo-source-actions"><button class="btn secondary" type="button" onclick="openPhotoPicker('editPhoto','camera')">カメラで撮影</button><button class="btn secondary" type="button" onclick="openPhotoPicker('editPhoto','device')">端末から選ぶ</button></div><input id="editPhoto" type="file" accept="image/*" class="hidden"><img id="editPhotoPreview" class="photo-preview ${photoSrc(i.photo)?'':'hidden'}" ${photoSrc(i.photo)?`src="${photoSrc(i.photo)}"`:''} data-ref="${escAttr(i.photo||'')}"><div class="actions"><button class="btn" onclick="saveItemEdit('${i.id}')">保存</button><button class="btn secondary" onclick="showScreen('searchScreen')">キャンセル</button></div></div>`;
  renderEditLocation(i.location);renderEditTags();
- document.getElementById('editPhoto').onchange=async e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
- r.onload=async()=>{try{
-  const ref=await putPhoto(r.result);
-  const p=document.getElementById('editPhotoPreview');p.src=r.result;p.classList.remove('hidden');p.dataset.value=ref;p.dataset.ref=ref;
- }catch(err){console.error(err);openAppMessage('写真の保存に失敗しました。','写真の保存に失敗しました。もう一度お試しください。')}};
- r.readAsDataURL(f);
+ document.getElementById('editPhoto').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+ try{
+  const dataUrl=await fileToPhotoDataUrl(f);
+  const ref=await putPhoto(dataUrl);
+  const p=document.getElementById('editPhotoPreview');p.src=dataUrl;p.classList.remove('hidden');p.dataset.value=ref;p.dataset.ref=ref;
+ }catch(err){console.error(err);openAppMessage('写真の保存に失敗しました。','写真の保存に失敗しました。もう一度お試しください。')}
 };
  showScreen('detailScreen');
 }
 function renderEditLocation(location){
- let chain=[],x=loc(location);while(x){chain.unshift(x.id);x=loc(x.parent)}editPath=chain;
+ let chain=[],x=loc(location);const chainSeen=new Set();while(x&&!chainSeen.has(x.id)){chainSeen.add(x.id);chain.unshift(x.id);x=loc(x.parent)}editPath=chain;
  const area=document.getElementById('editLocationArea');area.innerHTML='';
  if(!chain.length){const sel=document.createElement('select');sel.className='location-select';sel.innerHTML='<option value="">未振り分け</option>'+children(null).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');sel.value='';sel.onchange=()=>{editPath=sel.value?[sel.value]:[];renderEditLocation(sel.value||null)};area.appendChild(sel);return}
  let parent=null;
@@ -1555,6 +1627,7 @@ document.querySelectorAll('.nav').forEach(n=>n.addEventListener('click',()=>{
  renderSearch();
  renderAddForm(false);
  renderPlaces();
+ if(dataRecovered)showToast('保存データが破損していたため初期データで起動しました。破損したデータは端末内に退避してあります。');
  if(window.CloudSync)await window.CloudSync.init();
 })();
 
@@ -1562,7 +1635,7 @@ document.querySelectorAll('.nav').forEach(n=>n.addEventListener('click',()=>{
 
 // Keep Chrome's PWA installability check satisfied on Android without changing app behavior.
 if('serviceWorker' in navigator){
- navigator.serviceWorker.register('./service-worker.js?v=20261024-auth-session-and-latest-ui-v1').catch(()=>{});
+ navigator.serviceWorker.register('./service-worker.js?v=20261027-defect-fixes-v1').catch(()=>{});
 }
 </script>
 </body>
