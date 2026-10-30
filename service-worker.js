@@ -4,7 +4,7 @@
 // cache so the (local-first) app still opens when the network is unavailable.
 // Older app caches are removed on activate; unrelated caches on the shared
 // github.io origin are never touched.
-const APP_BUILD = '2026-10-27-defect-fixes-v1';
+const APP_BUILD = '2026-10-30-manual-sync-v1';
 const CACHE_NAME = 'home-organizer-shell-' + APP_BUILD;
 const APP_PREFIX = '/home-organizer/';
 const APP_SHELL = [
