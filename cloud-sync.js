@@ -2,8 +2,8 @@
   const config = window.HOME_ORGANIZER_SUPABASE || {};
   const configured = /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(config.url || '') &&
     !!config.anonKey && !String(config.anonKey).includes('YOUR_');
-  const APP_BUILD = '2026-10-27-defect-fixes-v1';
-  let client = null, user = null, busy = false, suppress = false, timer = null;
+  const APP_BUILD = '2026-10-30-manual-sync-v1';
+  let client = null, user = null, busy = false, suppress = false;
   const status = (message) => {
     const el = document.getElementById('cloudSyncStatus');
     if (el) el.textContent = message;
@@ -160,8 +160,8 @@
     const opts = options || {};
     // Conflict guard: if the cloud row changed since this device last synced
     // and its content differs from the local data, uploading would silently
-    // destroy the other device's changes. Refuse and let the caller ask the
-    // user which side to keep (see syncNow / checkRemoteFreshness).
+    // destroy the other device's changes. Refuse with a SYNC_CONFLICT error
+    // and let the caller preserve the cloud copy first (see syncNow).
     if (!opts.skipConflictCheck) {
       const remote = await fetchRemote();
       if (remote) {
@@ -216,125 +216,107 @@
     try { await window.HomeOrganizerSetData(restored); }
     finally { suppress = false; }
   }
-  // On an already-initialized device, check whether the cloud holds changes
-  // this device has never seen (e.g. edited on another device) and offer to
-  // import them instead of silently overwriting them on the next edit.
-  async function checkRemoteFreshness(){
-    try {
-      const remote = await fetchRemote();
-      const local = getLocalData();
-      if (!remote || !local) return;
-      const localHash = snapshotHash(local);
-      const remoteHash = snapshotHash(remote.data);
-      if (localHash === remoteHash) { setSyncMarker({ updatedAt: remote.updated_at, hash: localHash }); return; }
-      const marker = getSyncMarker();
-      if (marker && marker.updatedAt === remote.updated_at) return;
-      const takeRemote = confirm('クラウドに、この端末でまだ取り込んでいない新しいデータがあります（別の端末で更新された可能性があります）。\n\nOK：クラウドのデータをこの端末に取り込む（取り込み前に、この端末の現在のデータは本日分のクラウドバックアップに保存します）\nキャンセル：この端末のデータを優先する（次の同期でクラウドを上書きします）');
-      if (takeRemote) {
-        await writeBackupOnly(local);
-        await restoreRemote(remote.data);
-        setSyncMarker({ updatedAt: remote.updated_at, hash: remoteHash });
-        status('クラウドの新しいデータを取り込みました。自動同期が有効です。');
-      } else {
-        setSyncMarker({ updatedAt: remote.updated_at, hash: localHash });
-        status('この端末のデータを優先します。次の変更時にクラウドへ同期します。');
-      }
-    } catch (e) { console.warn('Remote freshness check failed', e); }
-  }
-  function initializedKey(){ return user ? 'homeOrganizerCloudInitialized:' + user.id : ''; }
-  async function onSignedIn(){
-    if (!client || !user || busy) return;
-    const key = initializedKey();
-    // Ask how to handle existing cloud data only during initial setup on this browser.
-    if (key && localStorage.getItem(key) === '1') {
-      status('Googleアカウントに接続済みです。自動同期が有効です。');
-      await checkRemoteFreshness();
-      return;
-    }
-    busy = true; status('クラウドのデータを確認しています…');
+  // Quietly compare the cloud copy with this device's data and report the
+  // result as status text only. Nothing is uploaded or imported here:
+  // backing up and restoring happen only when the user presses the
+  // corresponding button (syncNow / restoreLatestBackup).
+  async function refreshDifferenceStatus(){
     try {
       const remote = await fetchRemote();
       const local = getLocalData();
       if (!remote) {
-        await saveSnapshot(local, true);
-        if (key) localStorage.setItem(key, '1');
-        status('初回バックアップを作成しました。自動同期が有効です。');
+        status('Googleアカウントに接続済みです。クラウドにバックアップはまだありません。「クラウドにバックアップ」を押すと、この端末のデータを保存できます。');
+        return;
+      }
+      if (!local) { status('Googleアカウントに接続済みです。'); return; }
+      const localHash = snapshotHash(local);
+      const remoteHash = snapshotHash(remote.data);
+      if (localHash === remoteHash) {
+        setSyncMarker({ updatedAt: remote.updated_at, hash: localHash });
+        status('Googleアカウントに接続済みです。クラウドのバックアップと一致しています。');
       } else {
-        // Never replace this device's existing data automatically during sign-in.
-        // The explicit choice below only uploads local data; it never restores remote data.
-        const uploadLocal = confirm('このGoogleアカウントにはクラウドデータがあります。今までこの端末で登録したデータを保持するため、端末内のデータを優先します。\n\nOK：端末内のデータをクラウドに保存（クラウド側のデータは上書きされます）\nキャンセル：今回は保存せず、端末内のデータを保持');
-        if (uploadLocal) {
-          if (!local || !Array.isArray(local.locations) || !Array.isArray(local.items) || !Array.isArray(local.tags)) {
-            throw new Error('端末内データを確認できないため、クラウドのデータは変更していません');
-          }
-          await saveSnapshot(local, true, { skipConflictCheck: true });
-          if (key) localStorage.setItem(key, '1');
-          status('端末内のデータを保持し、クラウドにバックアップしました。');
-        } else {
-          if (key) localStorage.setItem(key, '1');
-          if (local) setSyncMarker({ updatedAt: remote.updated_at, hash: snapshotHash(local) });
-          status('端末内のデータを保持しました。クラウドのデータは変更していません。必要な場合は「クラウドにバックアップ」を押してください。');
-        }
+        status('Googleアカウントに接続済みです。クラウドのバックアップと端末のデータに差分があります。保存は「クラウドにバックアップ」、取り込みは「クラウドバックアップから復元」から手動で行えます。');
       }
     } catch (e) {
-      console.error('Cloud sync initialization failed', e);
-      status('同期に失敗しました。通信・Supabase設定・保存容量を確認してください。端末内データは保持されています。');
-    } finally { busy = false; }
+      console.warn('Cloud difference check failed', e);
+      status('Googleアカウントに接続済みです。クラウドの状態を確認できませんでした。');
+    }
+  }
+  function initializedKey(){ return user ? 'homeOrganizerCloudInitialized:' + user.id : ''; }
+  async function onSignedIn(){
+    if (!client || !user || busy) return;
+    // Sign-in never uploads or imports data and never asks via a popup.
+    // It only reports whether the cloud copy and this device differ.
+    const key = initializedKey();
+    if (key) localStorage.setItem(key, '1');
+    await refreshDifferenceStatus();
   }
   async function syncNow(){
     if (!client || !user || busy) return;
-    busy = true; status('同期中…');
+    busy = true; status('バックアップ中…');
     try { await saveSnapshot(getLocalData(), true); status('クラウドへのバックアップが完了しました。'); }
     catch (e) {
       if (e && e.code === 'SYNC_CONFLICT' && e.remote) {
-        // Ask which side to keep. Whichever side loses is first preserved in
-        // today's cloud backup so the choice can be undone via restore.
-        const local = getLocalData();
-        const overwrite = confirm('クラウドに、この端末で取り込んでいない新しいデータがあります。\n\nOK：この端末のデータでクラウドを上書きする（上書き前に、現在のクラウドデータは本日分のバックアップに保存します）\nキャンセル：クラウドのデータをこの端末に取り込む（取り込み前に、この端末の現在のデータは本日分のバックアップに保存します）');
+        // The user pressed the backup button, so this device's data is what
+        // they chose to save — no popup. Preserve the current cloud copy in
+        // today's backup first (createDailyBackup stays false so the
+        // preserved copy is not overwritten again by this same save), then
+        // upload. The status text explains that the cloud copy can be
+        // brought back from today's backup via the restore button.
         try {
-          if (overwrite) {
-            await writeBackupOnly(e.remote.data);
-            await saveSnapshot(local, true, { skipConflictCheck: true });
-            status('端末内のデータでクラウドを更新しました。');
-          } else {
-            await writeBackupOnly(local);
-            await restoreRemote(e.remote.data);
-            setSyncMarker({ updatedAt: e.remote.updated_at, hash: snapshotHash(e.remote.data) });
-            status('クラウドのデータを取り込みました。');
-          }
-        } catch (e2) { console.error(e2); status('同期できませんでした。端末内データは保持されています。'); }
-      } else { console.error(e); status('同期できませんでした。端末内データは保持されています。'); }
+          await writeBackupOnly(e.remote.data);
+          await saveSnapshot(getLocalData(), false, { skipConflictCheck: true });
+          status('クラウド側のデータは本日分のバックアップに保管したうえで、この端末のデータをバックアップしました。クラウド側の内容に戻したい場合は「クラウドバックアップから復元」を使ってください。');
+        } catch (e2) { console.error(e2); status('バックアップできませんでした。端末内データは保持されています。'); }
+      } else { console.error(e); status('バックアップできませんでした。端末内データは保持されています。'); }
     }
     finally { busy = false; }
   }
+  // Called on every local data change. Backups are manual now, so this
+  // never uploads anything; it only notes in the status line that there
+  // are changes the user has not backed up yet.
   function schedule(snapshot){
-    if (!client || !user || suppress) return;
-    clearTimeout(timer);
-    timer = setTimeout(async () => {
-      if (busy) { schedule(snapshot); return; }
-      busy = true; status('変更をクラウドへ同期しています…');
-      try { await saveSnapshot(snapshot, false); status('クラウドへ同期済みです。'); }
-      catch (e) {
-        console.error('Automatic sync failed', e);
-        if (e && e.code === 'SYNC_CONFLICT') status('クラウドに新しいデータがあるため、自動同期を止めています。「クラウドにバックアップ」を押して、どちらのデータを残すか選んでください。');
-        else status('自動同期に失敗しました。通信回復後に「クラウドにバックアップ」を押してください。');
-      }
-      finally { busy = false; }
-    }, 900);
+    if (!client || !user || suppress || !snapshot) return;
+    const marker = getSyncMarker();
+    if (marker && marker.hash === snapshotHash(snapshot)) return;
+    status('未バックアップの変更があります。「クラウドにバックアップ」を押すとクラウドに保存できます。');
   }
   window.addEventListener('online', () => {
-    if (user && client) {
-      status('通信が復旧しました。未同期の変更を送信しています…');
-      schedule(getLocalData());
-    }
+    if (user && client && !busy) refreshDifferenceStatus();
   });
+  // Manual restore, only from the restore button. Source priority: the
+  // current cloud data when it differs from this device (e.g. backed up
+  // from another device); otherwise the latest daily backup when it
+  // differs (e.g. the cloud copy preserved during a conflicting backup).
+  // The current local data is preserved in today's backup before restoring.
   async function restoreLatestBackup(){
-    if (!client || !user) return;
-    const { data, error } = await client.from('home_organizer_backups').select('backup_date,data').eq('user_id', user.id).order('backup_date', { ascending: false }).limit(1).maybeSingle();
-    if (error || !data) { status('利用できるクラウドバックアップがありません。'); return; }
-    if (!confirm(data.backup_date + ' 時点のバックアップで現在の端末データを置き換えます。先に端末内バックアップを書き出しましたか？')) return;
-    try { await restoreRemote(data.data); status('クラウドバックアップを復元しました。'); location.reload(); }
-    catch (e) { console.error(e); status('バックアップを復元できませんでした。'); }
+    if (!client || !user || busy) return;
+    busy = true;
+    try {
+      const local = getLocalData();
+      const localHash = local ? snapshotHash(local) : '';
+      const remote = await fetchRemote();
+      let snapshot = null, label = '';
+      if (remote && snapshotHash(remote.data) !== localHash) {
+        snapshot = remote.data;
+        label = 'クラウドの現在のデータ（' + String(remote.updated_at || '').slice(0, 10) + ' 更新）';
+      } else {
+        const { data, error } = await client.from('home_organizer_backups').select('backup_date,data').eq('user_id', user.id).order('backup_date', { ascending: false }).limit(1).maybeSingle();
+        if (error) throw error;
+        if (data && snapshotHash(data.data) !== localHash) {
+          snapshot = data.data;
+          label = data.backup_date + ' 時点のバックアップ';
+        }
+      }
+      if (!snapshot) { status('復元できるデータがありません。クラウドの内容は端末と一致しています。'); return; }
+      if (!confirm(label + 'で現在の端末データを置き換えます。復元前に、現在の端末データは本日分のバックアップに保存します。よろしいですか？')) return;
+      if (local) await writeBackupOnly(local);
+      await restoreRemote(snapshot);
+      setSyncMarker({ updatedAt: remote ? remote.updated_at : null, hash: snapshotHash(snapshot) });
+      status('クラウドのデータを取り込みました。');
+      location.reload();
+    } catch (e) { console.error(e); status('復元できませんでした。端末内データは保持されています。'); }
+    finally { busy = false; }
   }
   window.CloudSync = { init, login, logout, syncNow, schedule, restoreLatestBackup, isConfigured: () => configured };
 })();
