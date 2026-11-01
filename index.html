@@ -1266,8 +1266,9 @@ function renderLocationLevels(){
    candidates.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
   const value=addPath[level]&&candidates.some(x=>x.id===addPath[level])?addPath[level]:'';
   sel.value=value;
+  const selLevel=level;
   sel.onchange=()=>{
-   addPath=addPath.slice(0,level);
+   addPath=addPath.slice(0,selLevel);
    if(sel.value)addPath.push(sel.value);
    renderLocationLevels();
   };
