@@ -72,6 +72,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 header{position:relative;padding:24px 16px 16px;font:700 23px/1.45 Georgia,"Noto Serif JP",serif;letter-spacing:.04em;color:var(--espresso)}
 main{padding:8px 16px 112px}
 .screen{animation:screenIn .28s ease both}
+#topTapZone{position:fixed;top:0;left:0;right:0;height:14px;z-index:50;-webkit-tap-highlight-color:transparent}
 @keyframes screenIn{from{opacity:.3;transform:translateY(7px)}to{opacity:1;transform:none}}
 .screen.swipe-enter-from-right{animation:swipeEnterFromRight .22s ease-out both}
 .screen.swipe-enter-from-left{animation:swipeEnterFromLeft .22s ease-out both}
@@ -186,6 +187,7 @@ html.settings-open,body.settings-open{overflow:hidden!important}
 </style>
 </head>
 <body>
+<div id="topTapZone" aria-hidden="true"></div>
 <div class="app">
 <header>自宅の整理整頓<button id="settingsButton" class="settings-button" type="button" aria-label="設定を開く" title="設定" onclick="openSettings()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1"/></svg></button></header>
 <div id="settingsOverlay" class="settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" onclick="if(event.target===this)closeSettings()">
@@ -571,8 +573,11 @@ function closeSettings(){const el=document.getElementById('settingsOverlay');if(
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSettings();});
 
 let screenTransitionDirection = 0;
+let searchScrollY = 0;
 
 function showScreen(id){
+ const previous=document.querySelector('.screen.active');
+ if(previous&&previous.id==='searchScreen'&&id!=='searchScreen')searchScrollY=window.scrollY;
  document.querySelectorAll('.screen').forEach(x=>{
   x.classList.remove('active','swipe-enter-from-left','swipe-enter-from-right');
  });
@@ -586,7 +591,15 @@ function showScreen(id){
  if(id==='searchScreen')renderSearch();
  if(id==='placeScreen')renderPlaces();
  if(id==='addScreen')renderAddForm(false);
+ if(id==='searchScreen'&&previous&&previous.id==='detailScreen'){
+  requestAnimationFrame(()=>{window.scrollTo(0,searchScrollY);requestAnimationFrame(()=>window.scrollTo(0,searchScrollY));});
+ }
 }
+
+document.getElementById('topTapZone').addEventListener('click',()=>{
+ const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ window.scrollTo({top:0,behavior:reduce?'auto':'smooth'});
+});
 
 function validQuantity(value){
  if(value===null||value===undefined||String(value).trim()==='')return null;
